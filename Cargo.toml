@@ -1,0 +1,10 @@
+[package]
+name = "phoebe"
+version = "0.1.0"
+authors = ["Arthur Goldman <arthur@goldman-tribe.org>"]
+
+[dependencies]
+failure = "0.1"
+log = "0.4"
+lazy_static = "1.0"
+failure_derive = "0.1"
