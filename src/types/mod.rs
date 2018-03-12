@@ -18,6 +18,10 @@ use self::conversions::*;
 pub struct Object(u64);
 
 impl Object {
+    /// Used by the garbage collector. Returns `true` if this object
+    /// should be passed to `allocate::deallocate` - heap objects will
+    /// return `true` if their `gc_marking` does not match `mark` and
+    /// by-value objects will always return `false`.
     pub fn should_dealloc(self, mark: GcMark) -> bool {
         match ExpandedObject::from(self) {
             ExpandedObject::Float(_)
@@ -27,6 +31,9 @@ impl Object {
             ExpandedObject::Symbol(_s) => unimplemented!(),
         }
     }
+    /// Used by the garbage collector - if `self` is a heap object,
+    /// this method derefs and marks it so that it will not be
+    /// deallocated. For by-value objects, this is a no-op.
     pub fn gc_mark(self, mark: GcMark) {
         match ExpandedObject::from(self) {
             ExpandedObject::Float(_) | ExpandedObject::Immediate(_) => (),
@@ -35,11 +42,22 @@ impl Object {
             ExpandedObject::Symbol(s) => unimplemented!(),
         }
     }
+    /// This object represents the boolean `false`, or the null-pointer.
     pub fn nil() -> Self {
         Object::from(immediate::Immediate::from(false))
     }
+    /// This object represents the boolean `true`.
     pub fn t() -> Self {
         Object::from(immediate::Immediate::from(true))
+    }
+    /// A special marker value (of type `Immediate(SpecialMarker)`)
+    /// denoting an uninitialized value
+    pub fn uninitialized() -> Self {
+        Object::from(
+            immediate::Immediate::from(
+                immediate::SpecialMarker::Uninitialized
+            )
+        )
     }
 }
 
@@ -98,6 +116,11 @@ impl convert::From<Object> for ExpandedObject {
 }
 
 #[derive(Clone)]
+/// Many operations on `Object`s start by converting the `Object` into
+/// an `ExpandedObject` and then `match`ing over it. This approach
+/// allows us to take advantage of Rust's powerful and expressive
+/// `match` syntax while still having an `Object` type that fits in a
+/// `u64`.
 pub enum ExpandedObject {
     Float(f64),
     Immediate(immediate::Immediate),

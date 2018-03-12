@@ -9,12 +9,54 @@ const IMMEDIATE_TAG_MASK: u64 = 0xffff << 32;
 pub enum Immediate {
     Bool(bool),
     Integer(i32),
+    SpecialMarker(SpecialMarker),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+/// This enum represents special values an `Object` can hold.
+pub enum SpecialMarker {
+    /// The default `Object`; using it as a value represents an error
+    /// condition.
+    Uninitialized,
+}
+
+impl fmt::Display for SpecialMarker {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            &SpecialMarker::Uninitialized => write!(f, "UNINITIALIZED"),
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u64)]
 pub enum ImmediateTag {
     Bool,
     Integer,
+    SpecialMarker,
+}
+
+impl FromUnchecked<Object> for SpecialMarker {
+    unsafe fn from_unchecked(obj: Object) -> SpecialMarker {
+        debug_assert!(SpecialMarker::is_type(obj));
+        match (ImmediateTag::SpecialMarker.untag(obj.0) as u32) {
+            n if (SpecialMarker::Uninitialized as u32) == n => {
+                SpecialMarker::Uninitialized
+            }
+            n => panic!("{} is not a valid SpecialMarker", n)
+        }
+    }
+}
+
+impl FromObject for SpecialMarker {
+    type Tag = ImmediateTag;
+    fn associated_tag() -> ImmediateTag {
+        ImmediateTag::SpecialMarker
+    }
+    fn type_name() -> *const super::symbol::Symbol {
+        unimplemented!()
+    }
 }
 
 impl convert::From<ImmediateTag> for u64 {
@@ -63,6 +105,7 @@ impl convert::From<Immediate> for Object {
         Object(match i {
             Immediate::Bool(b) => ImmediateTag::Bool.tag(b as u64),
             Immediate::Integer(n) => ImmediateTag::Integer.tag(n as u32 as u64),
+            Immediate::SpecialMarker(s) => ImmediateTag::SpecialMarker.tag(s as u32 as u64),
         })
     }
 }
@@ -79,11 +122,18 @@ impl convert::From<i32> for Immediate {
     }
 }
 
+impl convert::From<SpecialMarker> for Immediate {
+    fn from(s: SpecialMarker) -> Immediate {
+        Immediate::SpecialMarker(s)
+    }
+}
+
 impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &Immediate::Bool(b) => if b { write!(f, "t") } else { write!(f, "nil") },
             &Immediate::Integer(n) => write!(f, "{}", n),
+            &Immediate::SpecialMarker(s) => write!(f, "{}", s),
         }
     }
 }

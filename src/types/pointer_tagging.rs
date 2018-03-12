@@ -41,6 +41,7 @@ pub trait PointerTag: Into<u64> + Copy {
 /// `Object` leaves 4 bits of tag between the NaN marker and the 48
 /// bit integer immediate.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u64)]
 pub enum ObjectTag {
     Cons,
     Symbol,

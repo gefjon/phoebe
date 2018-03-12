@@ -1,7 +1,7 @@
 use std::{sync};
 use std::default::Default;
 use stack::{current_stack_size, STACK};
-use allocate::{ALLOCED_OBJECTS, deallocate};
+use allocate::{ALLOCED_OBJECTS, deallocate, Deallocate};
 
 static INITIAL_GC_THRESHOLD: usize = 4;
 
@@ -66,7 +66,7 @@ pub fn gc_maybe_pass() {
     }
 }
 
-pub trait GarbageCollected {
+pub trait GarbageCollected: Deallocate {
     fn my_marking(&self) -> &GcMark;
     fn my_marking_mut(&mut self) -> &mut GcMark;
     fn gc_mark_children(&mut self, mark: GcMark);

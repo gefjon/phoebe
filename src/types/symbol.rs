@@ -1,10 +1,100 @@
-use std::{convert};
+use std::{convert, slice, fmt, str, ptr, mem};
 use super::Object;
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
+use allocate::{Allocate, Deallocate, DeallocError};
+use gc::{GcMark, GarbageCollected};
+use std::heap::{Alloc, Heap, Layout, self};
 
 pub struct Symbol {
-    _unused_data: u64,
+    gc_marking: GcMark,
+    length: usize,
+    head: u8,
+}
+
+impl Allocate<Symbol> for Symbol {
+    fn allocate(_: Symbol) -> Object {
+        panic!("attempt to use default allocator on an unsized type!")
+    }
+}
+
+impl<'any> Allocate<&'any [u8]> for Symbol {
+    fn allocate(text: &[u8]) -> Object {
+        use std::default::Default;
+        
+        let layout = Symbol::make_layout(text.len());
+        let pointer = match unsafe { Heap.alloc(layout) } {
+            Ok(p) => p,
+            Err(e) => heap::Heap.oom(e),
+        } as *mut Symbol;
+        let sym_ref = unsafe { &mut *pointer };
+        sym_ref.gc_marking = GcMark::default();
+        sym_ref.length = text.len();
+        unsafe {
+            ptr::copy_nonoverlapping(text.as_ptr(), sym_ref.pointer_mut(), text.len());
+        }
+        Object::from(pointer)
+    }
+}
+
+impl Deallocate for Symbol {
+    unsafe fn deallocate(p: *mut Symbol) -> Result<(), DeallocError> {
+        if p.is_null() {
+            Err(DeallocError::NullPointer)
+        } else {
+            ptr::drop_in_place(
+                (&mut *p).as_mut() as *mut [u8]
+            );
+            let layout = (&*p).my_layout();
+            heap::Heap.dealloc(p as *mut u8, layout);
+            Ok(())
+        }
+    }
+}
+
+impl Symbol {
+    fn my_layout(&self) -> Layout {
+        Symbol::make_layout(self.len())
+    }
+    fn make_layout(len: usize) -> Layout {
+        Layout::from_size_align(
+            mem::size_of::<Symbol>() + len - 1,
+            mem::align_of::<Symbol>()
+        ).unwrap()
+    }
+    pub fn len(&self) -> usize {
+        self.length
+    }
+    fn pointer(&self) -> *const u8 {
+        (&self.head) as *const u8
+    }
+    fn pointer_mut(&mut self) -> *mut u8 {
+        (&mut self.head) as *mut u8
+    }
+}
+
+impl convert::AsRef<[u8]> for Symbol {
+    fn as_ref(&self) -> &[u8] {
+        unsafe { slice::from_raw_parts(self.pointer(), self.len()) }
+    }
+}
+
+impl convert::AsMut<[u8]> for Symbol {
+    fn as_mut(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.pointer_mut(), self.len()) }
+    }
+}
+
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", str::from_utf8(self.as_ref()).unwrap_or("##UNPRINTABLE##"))
+    }
+}
+
+impl fmt::Debug for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[symbol {}]", self)
+    }
 }
 
 impl convert::From<*mut Symbol> for Object {
