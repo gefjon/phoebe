@@ -11,6 +11,12 @@ mod symbol_lookup;
 mod stack;
 mod gc;
 mod allocate;
+pub mod reader;
+pub mod evaluator;
+pub mod printer;
+pub mod repl;
+
+pub use repl::read_eval_print_loop;
 
 #[cfg(test)]
 mod tests {

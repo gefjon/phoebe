@@ -48,7 +48,13 @@ fn sweep(m: GcMark) {
 }
 
 fn mark_scope(m: GcMark) {
-    unimplemented!()
+    use symbol_lookup::{SYMBOLS_HEAP, SCOPE};
+    for &s in SYMBOLS_HEAP.lock().unwrap().values() {
+        s.gc_mark(m);
+    }
+    for nmspc in SCOPE.lock().unwrap().iter_mut() {
+        nmspc.gc_mark(m);
+    }
 }
 
 pub fn gc_pass() {

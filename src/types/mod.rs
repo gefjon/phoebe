@@ -8,6 +8,7 @@ pub mod reference;
 pub mod symbol;
 pub mod namespace;
 pub mod cons;
+pub mod heap_object;
 
 use self::conversions::*;
 
@@ -28,7 +29,9 @@ impl Object {
                 | ExpandedObject::Immediate(_)
                 | ExpandedObject::Reference(_) => false,
             ExpandedObject::Cons(c) => unsafe { &*c }.should_dealloc(mark),
-            ExpandedObject::Symbol(_s) => unimplemented!(),
+            ExpandedObject::Symbol(s) => unsafe { &*s }.should_dealloc(mark),
+            ExpandedObject::Namespace(n) => unsafe { &*n }.should_dealloc(mark),
+            ExpandedObject::HeapObject(h) => unsafe { &*h }.should_dealloc(mark),
         }
     }
     /// Used by the garbage collector - if `self` is a heap object,
@@ -39,7 +42,9 @@ impl Object {
             ExpandedObject::Float(_) | ExpandedObject::Immediate(_) => (),
             ExpandedObject::Reference(r) => (*r).gc_mark(mark),
             ExpandedObject::Cons(c) => unsafe { &mut *c }.gc_mark(mark),
-            ExpandedObject::Symbol(s) => unimplemented!(),
+            ExpandedObject::Symbol(s) => s.gc_mark(mark),
+            ExpandedObject::Namespace(n) => unsafe { &mut *n }.gc_mark(mark),
+            ExpandedObject::HeapObject(h) => unsafe { &mut *h }.gc_mark(mark),
         }
     }
     /// This object represents the boolean `false`, or the null-pointer.
@@ -54,9 +59,7 @@ impl Object {
     /// denoting an uninitialized value
     pub fn uninitialized() -> Self {
         Object::from(
-            immediate::Immediate::from(
-                immediate::SpecialMarker::Uninitialized
-            )
+            immediate::SpecialMarker::Uninitialized
         )
     }
 }
@@ -78,9 +81,11 @@ impl fmt::Display for ExpandedObject {
         match *self {
             ExpandedObject::Float(n) => write!(f, "{}", n),
             ExpandedObject::Reference(r) => write!(f, "{}", r),
-            ExpandedObject::Symbol(s) => unimplemented!(),
+            ExpandedObject::Symbol(s) => write!(f, "{}", *s),
             ExpandedObject::Immediate(i) => write!(f, "{}", i),
             ExpandedObject::Cons(c) => write!(f, "{}", unsafe { &*c }),
+            ExpandedObject::Namespace(n) => write!(f, "{}", unsafe { &*n }),
+            ExpandedObject::HeapObject(h) => write!(f, "{}", unsafe { &*h }),
         }
     }
 }
@@ -90,10 +95,18 @@ impl fmt::Debug for ExpandedObject {
         match *self {
             ExpandedObject::Float(n) => write!(f, "{:?}", n),
             ExpandedObject::Reference(r) => write!(f, "{:?}", r),
-            ExpandedObject::Symbol(s) => unimplemented!(),
+            ExpandedObject::Symbol(s) => write!(f, "{:?}", *s),
             ExpandedObject::Immediate(i) => write!(f, "{:?}", i),
             ExpandedObject::Cons(c) => write!(f, "{:?}", unsafe { &*c }),
+            ExpandedObject::Namespace(n) => write!(f, "{:?}", unsafe { &*n }),
+            ExpandedObject::HeapObject(h) => write!(f, "{:?}", unsafe { &*h }),
         }
+    }
+}
+
+impl convert::From<f64> for Object {
+    fn from(f: f64) -> Object {
+        Object(f.to_bits())
     }
 }
 
@@ -109,6 +122,10 @@ impl convert::From<Object> for ExpandedObject {
             ExpandedObject::Symbol(unsafe { obj.into_unchecked() })
         } else if reference::Reference::is_type(obj) {
             ExpandedObject::Reference(unsafe { obj.into_unchecked() })
+        } else if <*mut namespace::Namespace>::is_type(obj) {
+            ExpandedObject::Namespace(unsafe { obj.into_unchecked() })
+        } else if <*mut heap_object::HeapObject>::is_type(obj) {
+            ExpandedObject::HeapObject(unsafe { obj.into_unchecked() })
         } else {
             unreachable!()
         }
@@ -125,6 +142,8 @@ pub enum ExpandedObject {
     Float(f64),
     Immediate(immediate::Immediate),
     Reference(reference::Reference),
-    Symbol(*mut symbol::Symbol),
+    Symbol(symbol::SymRef),
     Cons(*mut cons::Cons),
+    Namespace(*mut namespace::Namespace),
+    HeapObject(*mut heap_object::HeapObject),
 }

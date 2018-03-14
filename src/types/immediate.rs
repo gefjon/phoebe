@@ -40,7 +40,7 @@ pub enum ImmediateTag {
 impl FromUnchecked<Object> for SpecialMarker {
     unsafe fn from_unchecked(obj: Object) -> SpecialMarker {
         debug_assert!(SpecialMarker::is_type(obj));
-        match (ImmediateTag::SpecialMarker.untag(obj.0) as u32) {
+        match ImmediateTag::SpecialMarker.untag(obj.0) as u32 {
             n if (SpecialMarker::Uninitialized as u32) == n => {
                 SpecialMarker::Uninitialized
             }
@@ -119,6 +119,24 @@ impl convert::From<bool> for Immediate {
 impl convert::From<i32> for Immediate {
     fn from(n: i32) -> Immediate {
         Immediate::Integer(n)
+    }
+}
+
+impl convert::From<i32> for Object {
+    fn from(n: i32) -> Object {
+        Object(ImmediateTag::Integer.tag(n as u32 as u64))
+    }
+}
+
+impl convert::From<bool> for Object {
+    fn from(b: bool) -> Object {
+        Object(ImmediateTag::Bool.tag(b as u64))
+    }
+}
+
+impl convert::From<SpecialMarker> for Object {
+    fn from(s: SpecialMarker) -> Object {
+        Object(ImmediateTag::SpecialMarker.tag(s as u32 as u64))
     }
 }
 

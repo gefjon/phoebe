@@ -1,10 +1,77 @@
-use std::{convert, slice, fmt, str, ptr, mem};
+use std::{convert, slice, fmt, str, ptr, mem, ops};
 use super::Object;
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
 use allocate::{Allocate, Deallocate, DeallocError};
 use gc::{GcMark, GarbageCollected};
 use std::heap::{Alloc, Heap, Layout, self};
+
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
+pub struct SymRef(*mut Symbol);
+
+impl SymRef {
+    pub fn gc_mark(self, m: GcMark) {
+        unsafe { &mut *(self.0) }.gc_mark(m);
+    }
+}
+
+impl AsRef<Symbol> for SymRef {
+    fn as_ref(&self) -> &Symbol {
+        unsafe { &*(self.0) }
+    }
+}
+
+impl AsMut<Symbol> for SymRef {
+    fn as_mut(&mut self) -> &mut Symbol {
+        unsafe { &mut *(self.0) }
+    }
+}
+
+impl ops::Deref for SymRef {
+    type Target = Symbol;
+    fn deref(&self) -> &Symbol {
+        self.as_ref()
+    }
+}
+
+impl convert::From<SymRef> for *mut Symbol {
+    fn from(s: SymRef) -> *mut Symbol {
+        s.0
+    }
+}
+
+unsafe impl Send for SymRef {}
+unsafe impl Sync for SymRef {}
+
+impl convert::From<*mut Symbol> for SymRef {
+    fn from(s: *mut Symbol) -> SymRef {
+        SymRef(s)
+    }
+}
+
+impl<'any> convert::From<&'any mut Symbol> for SymRef {
+    fn from(s: &mut Symbol) -> SymRef {
+        SymRef(s as *mut Symbol)
+    }
+}
+
+impl convert::From<SymRef> for Object {
+    fn from(s: SymRef) -> Object {
+        Object::from(s.0 as *mut Symbol)
+    }
+}
+
+impl fmt::Debug for SymRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", AsRef::<Symbol>::as_ref(self))
+    }
+}
+
+impl fmt::Display for SymRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", AsRef::<Symbol>::as_ref(self))
+    }
+}
 
 pub struct Symbol {
     gc_marking: GcMark,
@@ -13,13 +80,13 @@ pub struct Symbol {
 }
 
 impl Allocate<Symbol> for Symbol {
-    fn allocate(_: Symbol) -> Object {
+    fn alloc_one_and_initialize(_: Symbol) -> *mut Symbol {
         panic!("attempt to use default allocator on an unsized type!")
     }
 }
 
 impl<'any> Allocate<&'any [u8]> for Symbol {
-    fn allocate(text: &[u8]) -> Object {
+    fn alloc_one_and_initialize(text: &[u8]) -> *mut Symbol {
         use std::default::Default;
         
         let layout = Symbol::make_layout(text.len());
@@ -33,7 +100,7 @@ impl<'any> Allocate<&'any [u8]> for Symbol {
         unsafe {
             ptr::copy_nonoverlapping(text.as_ptr(), sym_ref.pointer_mut(), text.len());
         }
-        Object::from(pointer)
+        pointer
     }
 }
 
@@ -50,6 +117,16 @@ impl Deallocate for Symbol {
             Ok(())
         }
     }
+}
+
+impl GarbageCollected for Symbol {
+    fn my_marking(&self) -> &GcMark {
+        &self.gc_marking
+    }
+    fn my_marking_mut(&mut self) -> &mut GcMark {
+        &mut self.gc_marking
+    }
+    fn gc_mark_children(&mut self, _: GcMark) {}
 }
 
 impl Symbol {
@@ -100,6 +177,22 @@ impl fmt::Debug for Symbol {
 impl convert::From<*mut Symbol> for Object {
     fn from(s: *mut Symbol) -> Object {
         Object(ObjectTag::Symbol.tag(s as u64))
+    }
+}
+
+impl FromUnchecked<Object> for SymRef {
+    unsafe fn from_unchecked(obj: Object) -> SymRef {
+        SymRef(<*mut Symbol>::from_unchecked(obj))
+    }
+}
+
+impl FromObject for SymRef {
+    type Tag = ObjectTag;
+    fn associated_tag() -> ObjectTag {
+        ObjectTag::Symbol
+    }
+    fn type_name() -> *const Symbol {
+        unimplemented!()
     }
 }
 

@@ -48,9 +48,10 @@ pub enum ObjectTag {
     // String,
     // Function,
     // Error,
-    // Namespace,
+    Namespace,
     Immediate,
     Reference,
+    HeapObject,
 }
 
 impl convert::From<ObjectTag> for u64 {

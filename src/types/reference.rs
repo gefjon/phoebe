@@ -2,14 +2,10 @@ use std::{convert, borrow, ops, fmt};
 use super::{Object, symbol};
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
+use gc::{GcMark, GarbageCollected};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Reference(*mut Object);
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct HeapObject {
-    pub val: Object,
-}
 
 impl<'any> convert::From<&'any mut Object> for Reference {
     fn from(r: &mut Object) -> Reference {

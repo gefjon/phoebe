@@ -10,8 +10,22 @@ lazy_static! {
     };
 }
 
-pub trait Allocate<R> {
-    fn allocate(raw: R) -> Object;
+pub trait Allocate<R>
+where Object: convert::From<*mut Self> {
+    /// This method should be defined by the receiver but not called
+    /// except by `Allocate::allocate`. It is responsible for
+    /// converting a source of type `R` into a stack-allocated
+    /// `Self`. The method `allocate` calls `alloc_one_and_initialize`
+    /// and uses the pointer it created to build an `Object`.
+    fn alloc_one_and_initialize(raw: R) -> *mut Self;
+    /// This method is the forward-facing export of this
+    /// trait. `alloc_one_and_initialize` calls will not be
+    /// garbage-collected unless `allocate` is called around them.
+    fn allocate(raw: R) -> Object {
+        let obj = Object::from(Self::alloc_one_and_initialize(raw));
+        ALLOCED_OBJECTS.lock().unwrap().push(obj);
+        obj
+    }
 }
 
 pub trait Deallocate {
@@ -21,7 +35,7 @@ pub trait Deallocate {
 impl<T, R> Allocate<R> for T
 where Object: convert::From<*mut T>,
 T: convert::From<R> {
-    default fn allocate(raw: R) -> Object {
+    default fn alloc_one_and_initialize(raw: R) -> *mut T {
         let pointer = match heap::Heap.alloc_one() {
             Ok(p) => p.as_ptr(),
             Err(e) => heap::Heap.oom(e),
@@ -29,9 +43,7 @@ T: convert::From<R> {
         unsafe {
             ptr::write(pointer, T::from(raw));
         }
-        let obj = Object::from(pointer);
-        ALLOCED_OBJECTS.lock().unwrap().push(obj);
-        obj
+        pointer
     }
 }
 
@@ -63,7 +75,9 @@ pub unsafe fn deallocate(obj: Object) -> Result<(), DeallocError> {
         ExpandedObject::Float(_)
             | ExpandedObject::Immediate(_)
             | ExpandedObject::Reference(_) => Err(DeallocError::ImmediateType),
-        ExpandedObject::Symbol(s) => Deallocate::deallocate(s),
+        ExpandedObject::Symbol(s) => Deallocate::deallocate(s.into()),
         ExpandedObject::Cons(c) => Deallocate::deallocate(c),
+        ExpandedObject::Namespace(n) => Deallocate::deallocate(n),
+        ExpandedObject::HeapObject(h) => Deallocate::deallocate(h),
     }
 }

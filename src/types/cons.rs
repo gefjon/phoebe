@@ -3,6 +3,7 @@ use types::conversions::*;
 use gc::{GcMark, GarbageCollected};
 use types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
+use evaluator::{Evaluate, EvaluatorError};
 
 #[derive(Clone, Debug)]
 pub struct Cons {
@@ -24,6 +25,12 @@ impl Cons {
     }
     pub fn ref_cdr(&mut self) -> reference::Reference {
         reference::Reference::from(&mut self.cdr)
+    }
+}
+
+impl Evaluate for Cons {
+    fn evaluate(&self) -> Result<Object, EvaluatorError> {
+        unimplemented!()
     }
 }
 
