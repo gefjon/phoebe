@@ -5,6 +5,12 @@ use types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
 use evaluator::{Evaluate, EvaluatorError};
 
+lazy_static! {
+    static ref CONS_TYPE_NAME: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"cons")
+    };
+}
+
 #[derive(Clone, Debug)]
 pub struct Cons {
     gc_marking: GcMark,
@@ -59,7 +65,7 @@ impl FromObject for *mut Cons {
         ObjectTag::Cons
     }
     fn type_name() -> symbol::SymRef {
-        unimplemented!()
+        *CONS_TYPE_NAME
     }
 }
 

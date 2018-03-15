@@ -9,6 +9,7 @@ pub mod symbol;
 pub mod namespace;
 pub mod cons;
 pub mod heap_object;
+pub mod list;
 
 use self::conversions::*;
 
@@ -61,6 +62,10 @@ impl Object {
         Object::from(
             immediate::SpecialMarker::Uninitialized
         )
+    }
+    /// True iff self is exactly Object::nil()
+    pub fn nilp(self) -> bool {
+        self == Object::nil()
     }
 }
 
