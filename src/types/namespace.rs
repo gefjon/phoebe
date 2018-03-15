@@ -1,11 +1,17 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use std::collections::HashMap;
-use super::{Object, reference, heap_object};
-use types::symbol::{SymRef, self};
+use super::{Object, heap_object};
+use types::symbol::SymRef;
 use super::conversions::*;
 use gc::{GcMark, GarbageCollected};
 use std::{convert, fmt};
 use std::default::Default;
+
+lazy_static! {
+    static ref NAMESPACE_TYPE_NAME: SymRef = {
+        ::symbol_lookup::make_symbol(b"namespace")
+    };
+}
 
 #[derive(Clone, Debug)]
 pub enum Namespace {
@@ -39,27 +45,27 @@ impl Namespace {
 
 impl fmt::Display for Namespace {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Namespace::Heap { name: Some(name), .. } => write!(f, "[namespace {}]", name),
-            &Namespace::Heap { name: None, .. } => write!(f, "[namespace ANONYMOUS]"),
+        match *self {
+            Namespace::Heap { name: Some(name), .. } => write!(f, "[namespace {}]", name),
+            Namespace::Heap { name: None, .. } => write!(f, "[namespace ANONYMOUS]"),
         }
     }
 }
 
 impl GarbageCollected for Namespace {
     fn my_marking(&self) -> &GcMark {
-        match self {
-            &Namespace::Heap { ref gc_marking, .. } => gc_marking,
+        match *self {
+            Namespace::Heap { ref gc_marking, .. } => gc_marking,
         }
     }
     fn my_marking_mut(&mut self) -> &mut GcMark {
-        match self {
-            &mut Namespace::Heap { ref mut gc_marking, .. } => gc_marking,
+        match *self {
+            Namespace::Heap { ref mut gc_marking, .. } => gc_marking,
         }
     }
     fn gc_mark_children(&mut self, mark: GcMark) {
-        match self {
-            &mut Namespace::Heap { ref mut table, .. } => {
+        match *self {
+            Namespace::Heap { ref mut table, .. } => {
                 for (&sym, &mut heapobj) in table {
                     sym.gc_mark(mark);
                     unsafe { &mut *heapobj }.gc_mark(mark);
@@ -87,8 +93,8 @@ impl FromObject for *mut Namespace {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Namespace
     }
-    fn type_name() -> *const symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> SymRef {
+        *NAMESPACE_TYPE_NAME
     }
 }
 

@@ -4,6 +4,12 @@ use types::pointer_tagging::{ObjectTag, PointerTag};
 use types::conversions::*;
 use std::{convert, fmt, ops};
 
+lazy_static! {
+    static ref HEAP_OBJECT_TYPE_NAME: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"heap-object")
+    };
+}
+
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct HeapObject {
     gc_marking: GcMark,
@@ -67,7 +73,7 @@ impl FromObject for *mut HeapObject {
     fn associated_tag() -> ObjectTag {
         ObjectTag::HeapObject
     }
-    fn type_name() -> *const symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> symbol::SymRef {
+        *HEAP_OBJECT_TYPE_NAME
     }
 }

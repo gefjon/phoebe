@@ -1,7 +1,5 @@
 use types::{Object, ExpandedObject};
-use types::conversions::*;
-use std::{sync, convert, heap, ptr, mem};
-// use alloc::allocator::{Alloc, Layout};
+use std::{sync, convert, heap, ptr};
 use std::heap::Alloc;
 
 lazy_static! {

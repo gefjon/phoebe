@@ -5,6 +5,13 @@ use super::conversions::*;
 use allocate::{Allocate, Deallocate, DeallocError};
 use gc::{GcMark, GarbageCollected};
 use std::heap::{Alloc, Heap, Layout, self};
+use symbol_lookup::make_symbol;
+
+lazy_static! {
+    static ref SYMBOL_TYPE_NAME: SymRef = {
+        make_symbol(b"symbol")
+    };
+}
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct SymRef(*mut Symbol);
@@ -130,6 +137,9 @@ impl GarbageCollected for Symbol {
 }
 
 impl Symbol {
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn my_layout(&self) -> Layout {
         Symbol::make_layout(self.len())
     }
@@ -191,8 +201,8 @@ impl FromObject for SymRef {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Symbol
     }
-    fn type_name() -> *const Symbol {
-        unimplemented!()
+    fn type_name() -> SymRef {
+        *SYMBOL_TYPE_NAME
     }
 }
 
@@ -208,7 +218,27 @@ impl FromObject for *mut Symbol {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Symbol
     }
-    fn type_name() -> *const Symbol {
-        unimplemented!()
+    fn type_name() -> SymRef {
+        *SYMBOL_TYPE_NAME
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use types::Object;
+    use std::ptr;
+    #[test]
+    fn tag_and_untag() {
+        let obj = Object::from(SymRef(ptr::null_mut()));
+        assert_eq!(SymRef(ptr::null_mut()), unsafe { SymRef::from_unchecked(obj) });
+
+        let nonnull = 0xdead_beef as *mut Symbol;
+        let obj = Object::from(SymRef(nonnull));
+        assert_eq!(SymRef(nonnull), unsafe { SymRef::from_unchecked(obj) });
+    }
+    #[test]
+    fn symbol_type_name() {
+        assert_eq!(format!("{}", SymRef::type_name()), "symbol");
     }
 }

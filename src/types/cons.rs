@@ -35,7 +35,7 @@ impl Evaluate for Cons {
 }
 
 impl fmt::Display for Cons {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
         unimplemented!()
     }
 }
@@ -58,7 +58,7 @@ impl FromObject for *mut Cons {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Cons
     }
-    fn type_name() -> *const symbol::Symbol {
+    fn type_name() -> symbol::SymRef {
         unimplemented!()
     }
 }

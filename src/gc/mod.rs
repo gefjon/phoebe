@@ -1,4 +1,4 @@
-use std::{sync};
+use std::sync::atomic;
 use std::default::Default;
 use stack::{current_stack_size, STACK};
 use allocate::{ALLOCED_OBJECTS, deallocate, Deallocate};
@@ -6,32 +6,29 @@ use allocate::{ALLOCED_OBJECTS, deallocate, Deallocate};
 static INITIAL_GC_THRESHOLD: usize = 4;
 
 lazy_static! {
-    static ref THE_GC_MARK: sync::Mutex<GcMark> = {
-        sync::Mutex::new(GcMark::default())
+    static ref THE_GC_MARK: atomic::AtomicUsize = {
+        atomic::AtomicUsize::new(GcMark::default())
     };
-    static ref GC_THRESHOLD: sync::Mutex<usize> = {
-        sync::Mutex::new(INITIAL_GC_THRESHOLD)
+    static ref GC_THRESHOLD: atomic::AtomicUsize = {
+        atomic::AtomicUsize::new(INITIAL_GC_THRESHOLD)
     };
 }
 
 pub type GcMark = usize;
 
 fn should_gc_run() -> bool {
-    current_stack_size() > *(GC_THRESHOLD.lock().unwrap())
+    current_stack_size() > GC_THRESHOLD.load(atomic::Ordering::SeqCst)
 }
 
 fn update_gc_threshold() {
-    *(GC_THRESHOLD.lock().unwrap()) = current_stack_size() * 2;
+    let old_thresh = GC_THRESHOLD.load(atomic::Ordering::SeqCst);
+    GC_THRESHOLD.fetch_add(old_thresh, atomic::Ordering::SeqCst);
 }
 
 fn mark_stack(m: GcMark) {
     for obj in STACK.lock().unwrap().iter() {
         obj.gc_mark(m)
     }
-}
-
-fn inc_gc_mark(mut m: sync::MutexGuard<GcMark>) {
-    *m = m.wrapping_add(1);
 }
 
 fn sweep(m: GcMark) {
@@ -58,11 +55,10 @@ fn mark_scope(m: GcMark) {
 }
 
 pub fn gc_pass() {
-    let mark = THE_GC_MARK.lock().unwrap();
-    mark_stack(*mark);
-    mark_scope(*mark);
-    sweep(*mark);
-    inc_gc_mark(mark);
+    let mark = THE_GC_MARK.fetch_add(1, atomic::Ordering::SeqCst);
+    mark_stack(mark);
+    mark_scope(mark);
+    sweep(mark);
     update_gc_threshold();
 }
 

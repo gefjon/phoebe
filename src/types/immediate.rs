@@ -5,6 +5,15 @@ use super::conversions::*;
 
 const IMMEDIATE_TAG_MASK: u64 = 0xffff << 32;
 
+lazy_static! {
+    static ref IMMEDIATE_TYPE_NAME: ::types::symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"immediate")
+    };
+    static ref SPECIAL_MARKER_TYPE_NAME: ::types::symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"special-marker")
+    };
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Immediate {
     Bool(bool),
@@ -23,8 +32,8 @@ pub enum SpecialMarker {
 
 impl fmt::Display for SpecialMarker {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &SpecialMarker::Uninitialized => write!(f, "UNINITIALIZED"),
+        match *self {
+            SpecialMarker::Uninitialized => write!(f, "UNINITIALIZED"),
         }
     }
 }
@@ -54,8 +63,8 @@ impl FromObject for SpecialMarker {
     fn associated_tag() -> ImmediateTag {
         ImmediateTag::SpecialMarker
     }
-    fn type_name() -> *const super::symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> super::symbol::SymRef {
+        *SPECIAL_MARKER_TYPE_NAME
     }
 }
 
@@ -95,8 +104,8 @@ impl FromObject for Immediate {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Immediate
     }
-    fn type_name() -> *const super::symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> super::symbol::SymRef {
+        *IMMEDIATE_TYPE_NAME
     }
 }
 
@@ -104,8 +113,8 @@ impl convert::From<Immediate> for Object {
     fn from(i: Immediate) -> Object {
         Object(match i {
             Immediate::Bool(b) => ImmediateTag::Bool.tag(b as u64),
-            Immediate::Integer(n) => ImmediateTag::Integer.tag(n as u32 as u64),
-            Immediate::SpecialMarker(s) => ImmediateTag::SpecialMarker.tag(s as u32 as u64),
+            Immediate::Integer(n) => ImmediateTag::Integer.tag(u64::from(n as u32)),
+            Immediate::SpecialMarker(s) => ImmediateTag::SpecialMarker.tag(u64::from(s as u32)),
         })
     }
 }
@@ -124,7 +133,7 @@ impl convert::From<i32> for Immediate {
 
 impl convert::From<i32> for Object {
     fn from(n: i32) -> Object {
-        Object(ImmediateTag::Integer.tag(n as u32 as u64))
+        Object(ImmediateTag::Integer.tag(u64::from(n as u32)))
     }
 }
 
@@ -136,7 +145,7 @@ impl convert::From<bool> for Object {
 
 impl convert::From<SpecialMarker> for Object {
     fn from(s: SpecialMarker) -> Object {
-        Object(ImmediateTag::SpecialMarker.tag(s as u32 as u64))
+        Object(ImmediateTag::SpecialMarker.tag(u64::from(s as u32)))
     }
 }
 
@@ -148,10 +157,10 @@ impl convert::From<SpecialMarker> for Immediate {
 
 impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            &Immediate::Bool(b) => if b { write!(f, "t") } else { write!(f, "nil") },
-            &Immediate::Integer(n) => write!(f, "{}", n),
-            &Immediate::SpecialMarker(s) => write!(f, "{}", s),
+        match *self {
+            Immediate::Bool(b) => if b { write!(f, "t") } else { write!(f, "nil") },
+            Immediate::Integer(n) => write!(f, "{}", n),
+            Immediate::SpecialMarker(s) => write!(f, "{}", s),
         }
     }
 }

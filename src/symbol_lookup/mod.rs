@@ -31,9 +31,21 @@ pub fn make_symbol(s: &[u8]) -> SymRef {
         let _insert_ref = sym_heap.insert(s.to_owned(), sym);
         debug_assert!(_insert_ref.is_none());
     }
-    sym_heap.get(s).unwrap().clone()
+    *(sym_heap.get(s).unwrap())
 }
         
-pub fn lookup_symbol(s: SymRef) -> reference::Reference {
+pub fn lookup_symbol(_s: SymRef) -> reference::Reference {
     unimplemented!()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn deref_a_symbol() {
+        let sym_name = b"my-sym";
+        let sym = make_symbol(sym_name);
+        assert_eq!((*sym).len(), sym_name.len());
+        assert_eq!((*sym).as_ref(), sym_name);
+    }
 }

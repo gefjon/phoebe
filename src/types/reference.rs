@@ -2,7 +2,12 @@ use std::{convert, borrow, ops, fmt};
 use super::{Object, symbol};
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
-use gc::{GcMark, GarbageCollected};
+
+lazy_static! {
+    static ref REFERENCE_TYPE_NAME: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"reference")
+    };
+}
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Reference(*mut Object);
@@ -51,8 +56,8 @@ impl FromObject for Reference {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Reference
     }
-    fn type_name() -> *const symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> symbol::SymRef {
+        *REFERENCE_TYPE_NAME
     }
     fn derefs_to(obj: Object) -> bool {
         Self::is_type(obj)

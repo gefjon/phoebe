@@ -29,7 +29,7 @@ impl Object {
                 | ExpandedObject::Immediate(_)
                 | ExpandedObject::Reference(_) => false,
             ExpandedObject::Cons(c) => unsafe { &*c }.should_dealloc(mark),
-            ExpandedObject::Symbol(s) => unsafe { &*s }.should_dealloc(mark),
+            ExpandedObject::Symbol(s) => s.should_dealloc(mark),
             ExpandedObject::Namespace(n) => unsafe { &*n }.should_dealloc(mark),
             ExpandedObject::HeapObject(h) => unsafe { &*h }.should_dealloc(mark),
         }

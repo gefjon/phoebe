@@ -1,8 +1,8 @@
 use std::io::prelude::*;
 use std::{io, convert};
-use reader::{read, ReaderError};
-use evaluator::{Evaluate, EvaluatorError};
-use printer::{PrinterError, print};
+use reader::read;
+use evaluator::Evaluate;
+use printer::print;
 
 #[derive(Fail, Debug)]
 pub enum ReplError {

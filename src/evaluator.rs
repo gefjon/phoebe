@@ -22,14 +22,14 @@ impl Evaluate for Object {
 
 impl Evaluate for ExpandedObject {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
-        Ok(match self {
-            &ExpandedObject::Float(n) => Object::from(n),
-            &ExpandedObject::Immediate(i) => Object::from(i),
-            &ExpandedObject::Reference(r) => *r,
-            &ExpandedObject::Symbol(s) => Object::from(lookup_symbol(s)),
-            &ExpandedObject::Cons(c) => unsafe { &*c }.evaluate()?,
-            &ExpandedObject::Namespace(n) => Object::from(n),
-            &ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).evaluate()?,
+        Ok(match *self {
+            ExpandedObject::Float(n) => Object::from(n),
+            ExpandedObject::Immediate(i) => Object::from(i),
+            ExpandedObject::Reference(r) => *r,
+            ExpandedObject::Symbol(s) => Object::from(lookup_symbol(s)),
+            ExpandedObject::Cons(c) => unsafe { &*c }.evaluate()?,
+            ExpandedObject::Namespace(n) => Object::from(n),
+            ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).evaluate()?,
         })
     }
 }

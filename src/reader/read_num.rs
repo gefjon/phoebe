@@ -8,14 +8,14 @@ enum Sign {
 }
 
 fn power_of_ten(e: i16) -> f64 {
-    (10.0f64).powi(e as i32)
+    (10.0f64).powi(i32::from(e))
 }
 
 pub fn parse_to_object(s: &[u8]) -> Object {
     match parse_decimal(s) {
         ParseDecimalResult::Integer(i) => Object::from(i),
         ParseDecimalResult::Symbol(s) => symbol::Symbol::allocate(s),
-        ParseDecimalResult::Float(dec) => Object::from(dec.to_float()),
+        ParseDecimalResult::Float(dec) => Object::from(dec.make_float()),
     }
 }
 
@@ -28,7 +28,7 @@ struct DecimalFp<'a> {
 }
 
 impl<'a> DecimalFp<'a> {
-    fn to_float(mut self) -> f64 {
+    fn make_float(mut self) -> f64 {
         simplify(&mut self);
 
         let integral = parse_float_from_bytes_unchecked(self.integral);
@@ -60,20 +60,18 @@ fn parse_decimal(input: &[u8]) -> ParseDecimalResult {
             let i = parse_num_from_bytes_unchecked(integral) as i32;
             match sign {
                 Sign::Positive => ParseDecimalResult::Integer(i),
-                Sign::Negative => ParseDecimalResult::Integer(i * -1),
+                Sign::Negative => ParseDecimalResult::Integer(-i),
             }
         }
         Some(&b'e') | Some(&b'E') => {
             if integral.is_empty() {
                 ParseDecimalResult::Symbol(input)
+            } else if let Some(exp) = parse_exp(&s[1..]) {
+                ParseDecimalResult::Float(DecimalFp {
+                    sign, integral, fractional: b"", exp
+                })
             } else {
-                if let Some(exp) = parse_exp(&s[1..]) {
-                    ParseDecimalResult::Float(DecimalFp {
-                        sign, integral, fractional: b"", exp
-                    })
-                } else {
-                    ParseDecimalResult::Symbol(input)
-                }
+                ParseDecimalResult::Symbol(input)
             }
         }
         Some(&b'.') => {
@@ -107,8 +105,7 @@ fn extract_sign(s: &[u8]) -> (Sign, &[u8]) {
     match s.first() {
         Some(&b'-') => (Sign::Negative, &s[1..]),
         Some(&b'+') => (Sign::Positive, &s[1..]),
-        Some(_) => (Sign::Positive, s),
-        None => (Sign::Positive, s),
+        Some(_) | None => (Sign::Positive, s),
     }
 }
 
@@ -145,7 +142,7 @@ fn parse_exp(s: &[u8]) -> Option<i64> {
 fn parse_float_from_bytes_unchecked(s: &[u8]) -> f64 {
     let mut result = 0.0;
     for &c in s {
-        result = result * 10.0 + ((c - b'0') as f64);
+        result = result * 10.0 + f64::from(c - b'0');
     }
     result
 }
@@ -153,7 +150,7 @@ fn parse_float_from_bytes_unchecked(s: &[u8]) -> f64 {
 fn parse_num_from_bytes_unchecked(s: &[u8]) -> u64 {
     let mut result = 0;
     for &c in s {
-        result = result * 10 + ((c - b'0') as u64);
+        result = result * 10 + u64::from(c - b'0');
     }
     result
 }

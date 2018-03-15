@@ -1,6 +1,6 @@
 use std::{convert};
 
-pub const POINTER_TAGGING_MASK: u64 = 0b111;
+// pub const POINTER_TAGGING_MASK: u64 = 0b111;
 pub const OBJECT_TAG_MASK: u64 = 0b1111 << 48;
 pub const NAN_MASK: u64 = 0b111_1111_1111 << 52;
 
@@ -33,7 +33,7 @@ pub trait PointerTag: Into<u64> + Copy {
     }
     fn untag(self, ptr: u64) -> u64 {
         debug_assert!(self.is_of_type(ptr));
-        ptr & !(self.into())
+        ptr & !(self.into() ^ Self::parent_tag())
     }
 }
 
@@ -119,5 +119,32 @@ impl PointerTag for Floatp {
             Floatp::NaN => ptr & !Self::mask_bits(),
             Floatp::Float => ptr,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn tag_and_untag() {
+        let num = 0xdead_beef;
+
+        let as_a_cons = ObjectTag::Cons.tag(num);
+        assert_eq!(ObjectTag::Cons.untag(as_a_cons), num);
+
+        let as_a_symbol = ObjectTag::Symbol.tag(num);
+        assert_eq!(ObjectTag::Symbol.untag(as_a_symbol), num);
+
+        let as_a_namespace = ObjectTag::Namespace.tag(num);
+        assert_eq!(ObjectTag::Namespace.untag(as_a_namespace), num);
+
+        let as_an_immediate = ObjectTag::Immediate.tag(num);
+        assert_eq!(ObjectTag::Immediate.untag(as_an_immediate), num);
+
+        let as_a_reference = ObjectTag::Reference.tag(num);
+        assert_eq!(ObjectTag::Reference.untag(as_a_reference), num);
+
+        let as_a_heap_object = ObjectTag::HeapObject.tag(num);
+        assert_eq!(ObjectTag::HeapObject.untag(as_a_heap_object), num);
     }
 }

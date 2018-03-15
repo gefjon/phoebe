@@ -1,6 +1,18 @@
 use types::{Object, reference, symbol, pointer_tagging};
 use types::pointer_tagging::PointerTag;
 
+lazy_static! {
+    static ref FLOAT_TYPE_NAME: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"float")
+    };
+    static ref INTEGER_TYPE_NAME: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"integer")
+    };
+    static ref BOOL_TYPE_NAME: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"booleanr")
+    };
+}
+
 pub trait MaybeFrom<T: Sized>: Sized {
     fn maybe_from(t: T) -> Option<Self>;
 }
@@ -20,7 +32,7 @@ pub trait IntoUnchecked<T: Sized>: Sized {
 pub trait FromObject {
     type Tag: pointer_tagging::PointerTag;
     fn associated_tag() -> Self::Tag;
-    fn type_name() -> *const symbol::Symbol;
+    fn type_name() -> symbol::SymRef;
     fn is_type(obj: Object) -> bool {
         Self::associated_tag().is_of_type(obj.0)
     }
@@ -96,7 +108,7 @@ where
     fn associated_tag() -> Self::Tag {
         <*mut T as FromObject>::associated_tag()
     }
-    fn type_name() -> *const symbol::Symbol {
+    fn type_name() -> symbol::SymRef {
         <*mut T>::type_name()
     }
 }
@@ -109,7 +121,7 @@ where
     fn associated_tag() -> Self::Tag {
         <*const T as FromObject>::associated_tag()
     }
-    fn type_name() -> *const symbol::Symbol {
+    fn type_name() -> symbol::SymRef {
         <*const T>::type_name()
     }
 }
@@ -122,7 +134,7 @@ where
     fn associated_tag() -> Self::Tag {
         <*mut T as FromObject>::associated_tag()
     }
-    fn type_name() -> *const symbol::Symbol {
+    fn type_name() -> symbol::SymRef {
         <*mut T>::type_name()
     }
 }
@@ -138,8 +150,8 @@ impl FromObject for f64 {
     fn associated_tag() -> super::pointer_tagging::Floatp {
         super::pointer_tagging::Floatp::Float
     }
-    fn type_name() -> *const symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> symbol::SymRef {
+        *FLOAT_TYPE_NAME
     }
 }
 
@@ -156,8 +168,8 @@ impl FromObject for bool {
     fn associated_tag() -> super::immediate::ImmediateTag {
         super::immediate::ImmediateTag::Bool
     }
-    fn type_name() -> *const symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> symbol::SymRef {
+        *BOOL_TYPE_NAME
     }
 }
 
@@ -174,7 +186,7 @@ impl FromObject for i32 {
     fn associated_tag() -> super::immediate::ImmediateTag {
         super::immediate::ImmediateTag::Integer
     }
-    fn type_name() -> *const symbol::Symbol {
-        unimplemented!()
+    fn type_name() -> symbol::SymRef {
+        *INTEGER_TYPE_NAME
     }
 }
