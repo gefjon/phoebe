@@ -48,4 +48,11 @@ mod test {
         assert_eq!((*sym).len(), sym_name.len());
         assert_eq!((*sym).as_ref(), sym_name);
     }
+    #[test]
+    fn symbols_are_eq() {
+        let sym_name = b"any-symbol";
+        let first = make_symbol(sym_name);
+        let second = make_symbol(sym_name);
+        assert_eq!(first, second);
+    }
 }

@@ -5,37 +5,70 @@ lazy_static! {
     static ref FLOAT_TYPE_NAME: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"float")
     };
+
+    // This could be changed to `fixnum` in the future if Phoebe gets
+    // a `bignum` type and wants to use `integer` for the set of all
+    // `fixnum`s and `bignum`s.
     static ref INTEGER_TYPE_NAME: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"integer")
     };
     static ref BOOL_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"booleanr")
+        ::symbol_lookup::make_symbol(b"boolean")
     };
 }
 
+/// This trait is analogous to `std::convert::From` and `TryFrom`,
+/// only it returns an `Option<Self>` instead of a `Self` or
+/// `Result<Self>`. I find it more idiomatic to use an `Option` to
+/// denote conversions between subtypes than a `Result` - failure to
+/// convert an `Object` into a type is not an error condition.
 pub trait MaybeFrom<T: Sized>: Sized {
     fn maybe_from(t: T) -> Option<Self>;
 }
 
+/// This trait is analogous to `std::convert::From` but marked
+/// `unsafe`. The idea behind this is to expose a method for the raw
+/// tagging and untagging of `Object`s which can be called by
+/// `MaybeFrom` after type checking, or in cases where we are
+/// absolutely sure we have an object of the correct type.
 pub trait FromUnchecked<T: Sized>: Sized {
     unsafe fn from_unchecked(obj: T) -> Self;
 }
 
+/// The companion trait to `MaybeFrom` - automatically derived for
+/// `MaybeFrom` types.
 pub trait MaybeInto<T: Sized>: Sized {
     fn maybe_into(self) -> Option<T>;
 }
 
+/// The companion trait to `FromUnchecked` - automatically derived for
+/// `FromUnchecked` types.
 pub trait IntoUnchecked<T: Sized>: Sized {
     unsafe fn into_unchecked(self) -> T;
 }
 
+/// This trait encapsulates several utility functions related to
+/// converting from `Object`.
 pub trait FromObject {
     type Tag: pointer_tagging::PointerTag;
     fn associated_tag() -> Self::Tag;
+
+    /// Returns a `SymRef` to the name of this type. This is coupled
+    /// with a `lazy_static` which creates the `SymRef` and holds onto
+    /// it; check the implementation for `f64`, `i32` or `bool` for
+    /// examples.
     fn type_name() -> symbol::SymRef;
+
+    /// Returns `true` iff `obj` is a correctly tagged `Self`. Note
+    /// that being correctly tagged does not necessarily imply being a
+    /// valid value - this function will not check that by-reference
+    /// types are non-null or that they point to a valid instance.
     fn is_type(obj: Object) -> bool {
         Self::associated_tag().is_of_type(obj.0)
     }
+
+    /// A generalization of `is_type`; also returns `true` if `obj` is
+    /// a `Reference` pointing to a correctly tagged `Self`.
     fn derefs_to(obj: Object) -> bool {
         Self::is_type(obj)
             || if let Some(r) = reference::Reference::maybe_from(obj) {
