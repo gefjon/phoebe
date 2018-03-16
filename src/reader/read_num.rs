@@ -1,5 +1,5 @@
-use types::{Object, symbol};
-use allocate::Allocate;
+use types::Object;
+use symbol_lookup::make_symbol;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Sign {
@@ -14,7 +14,7 @@ fn power_of_ten(e: i16) -> f64 {
 pub fn parse_to_object(s: &[u8]) -> Object {
     match parse_decimal(s) {
         ParseDecimalResult::Integer(i) => Object::from(i),
-        ParseDecimalResult::Symbol(s) => symbol::Symbol::allocate(s),
+        ParseDecimalResult::Symbol(s) => Object::from(make_symbol(s)),
         ParseDecimalResult::Float(dec) => Object::from(dec.make_float()),
     }
 }
