@@ -1,7 +1,7 @@
 use types::{Object, symbol, pointer_tagging};
 use types::conversions::*;
 use types::cons::Cons;
-use std::{mem, convert, iter};
+use std::{mem, convert, iter, cmp};
 use allocate::Allocate;
 
 lazy_static! {
@@ -10,10 +10,23 @@ lazy_static! {
     };
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 pub enum List {
     Nil,
     Cons(*mut Cons),
+}
+
+impl cmp::PartialEq for List {
+    fn eq(&self, other: &List) -> bool {
+        let mut first = *self;
+        let mut second = *other;
+        for (lhs, rhs) in first.zip(&mut second) {
+            if !lhs.equal(rhs) {
+                return false;
+            }
+        }
+        first.next().is_none() && second.next().is_none()
+    }
 }
 
 impl List {

@@ -10,6 +10,7 @@ pub mod namespace;
 pub mod cons;
 pub mod heap_object;
 pub mod list;
+pub mod number;
 
 use self::conversions::*;
 
@@ -66,6 +67,29 @@ impl Object {
     /// True iff self is exactly Object::nil()
     pub fn nilp(self) -> bool {
         self == Object::nil()
+    }
+
+    pub fn eql(self, other: Object) -> bool {
+        if let (Some(n), Some(m)) = (
+            number::PhoebeNumber::maybe_from(self),
+            number::PhoebeNumber::maybe_from(other)
+        ) {
+            n == m
+        } else {
+            self == other
+        }
+    }
+    pub fn equal(self, other: Object) -> bool {
+        match (ExpandedObject::from(self), ExpandedObject::from(other)) {
+            (ExpandedObject::Reference(r), _) => other.equal(*r),
+            (_, ExpandedObject::Reference(r)) => self.equal(*r),
+            (ExpandedObject::Cons(a), ExpandedObject::Cons(b)) => unsafe {
+                *a == *b
+            }
+            (ExpandedObject::HeapObject(r), _) => other.equal(unsafe { **r }),
+            (_, ExpandedObject::HeapObject(r)) => self.equal(unsafe { **r }),
+            (_, _) => self.eql(other),
+        }
     }
 }
 
@@ -137,7 +161,7 @@ impl convert::From<Object> for ExpandedObject {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 /// Many operations on `Object`s start by converting the `Object` into
 /// an `ExpandedObject` and then `match`ing over it. This approach
 /// allows us to take advantage of Rust's powerful and expressive

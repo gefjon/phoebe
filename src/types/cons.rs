@@ -2,7 +2,7 @@ use types::{Object, reference, symbol};
 use types::conversions::*;
 use gc::{GcMark, GarbageCollected};
 use types::pointer_tagging::{ObjectTag, PointerTag};
-use std::{convert, fmt};
+use std::{convert, fmt, cmp};
 use evaluator::{Evaluate, EvaluatorError};
 
 lazy_static! {
@@ -16,6 +16,12 @@ pub struct Cons {
     gc_marking: GcMark,
     pub car: Object,
     pub cdr: Object,
+}
+
+impl cmp::PartialEq for Cons {
+    fn eq(&self, other: &Cons) -> bool {
+        self.car.equal(other.car) && self.cdr.equal(other.cdr)
+    }
 }
 
 impl Cons {

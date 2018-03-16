@@ -167,4 +167,34 @@ mod test {
         assert_eq!(peek(iter), Some(b'w'));
         assert_eq!(peek(iter), Some(b'w'));
     }
+    #[test]
+    fn read_atoms() {
+        let input = b"1234 0.5 foo";
+        let iter = &mut input.iter().cloned().peekable();
+        assert_eq!(read(iter).unwrap().unwrap(), Object::from(1234i32));
+        assert_eq!(read(iter).unwrap().unwrap(), Object::from(0.5f64));
+        assert_eq!(
+            read(iter).unwrap().unwrap(),
+            Object::from(::symbol_lookup::make_symbol(b"foo"))
+        );
+        assert!(iter.next().is_none());
+    }
+    #[test]
+    fn read_list() {
+        let input = b"(1 2 3 4 5)";
+        let iter = &mut input.iter().cloned().peekable();
+        let list: ::types::list::List = [
+            Object::from(1i32),
+            Object::from(2i32),
+            Object::from(3i32),
+            Object::from(4i32),
+            Object::from(5i32)
+        ].iter().cloned().collect();
+
+        let res = read(iter).unwrap().unwrap();
+        println!("read: {:?}", res);
+        println!("list: {:?}", Object::from(list));
+        
+        assert!(res.equal(Object::from(list)));
+    }
 }
