@@ -1,7 +1,7 @@
 use types::{Object, symbol, pointer_tagging};
 use types::conversions::*;
 use types::cons::Cons;
-use std::{mem, convert, iter, cmp};
+use std::{mem, convert, iter, cmp, fmt};
 use allocate::Allocate;
 
 lazy_static! {
@@ -26,6 +26,16 @@ impl cmp::PartialEq for List {
             }
         }
         first.next().is_none() && second.next().is_none()
+    }
+}
+
+impl fmt::Display for List {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(c) = <&Cons>::maybe_from(*self) {
+            write!(f, "{}", c)
+        } else {
+            write!(f, "()")
+        }
     }
 }
 

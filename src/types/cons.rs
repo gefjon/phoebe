@@ -47,8 +47,21 @@ impl Evaluate for Cons {
 }
 
 impl fmt::Display for Cons {
-    fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-        unimplemented!()
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let &Cons { car, cdr: mut curr, .. } = self;
+        write!(f, "({}", car)?;
+        loop {
+            if let Some(&Cons { car, cdr, .. }) = <&Cons>::maybe_from(curr) {
+                curr = cdr;
+                write!(f, " {}", car)?;
+            } else if curr.nilp() {
+                break;
+            } else {
+                write!(f, " . {}", curr)?;
+                break;
+            }
+        }
+        write!(f, ")")
     }
 }
 
@@ -85,5 +98,26 @@ impl GarbageCollected for Cons {
     fn gc_mark_children(&mut self, mark: GcMark) {
         self.car.gc_mark(mark);
         self.cdr.gc_mark(mark);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use types::Object;
+    use allocate::Allocate;
+    #[test]
+    fn format_a_cons() {
+        let c = Cons::new(
+            Object::from(1i32),
+            Cons::allocate(Cons::new(
+                Object::from(2i32),
+                Cons::allocate(Cons::new(
+                    Object::from(3i32),
+                    Object::from(4i32)
+                ))
+            ))
+        );
+        assert_eq!(format!("{}", c), "(1 2 3 . 4)");
     }
 }
