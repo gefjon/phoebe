@@ -27,6 +27,7 @@ impl Evaluate for ExpandedObject {
             ExpandedObject::Immediate(i) => Object::from(i),
             ExpandedObject::Reference(r) => *r,
             ExpandedObject::Symbol(s) => Object::from(lookup_symbol(s)),
+            ExpandedObject::Function(f) => Object::from(f),
             ExpandedObject::Cons(c) => unsafe { &*c }.evaluate()?,
             ExpandedObject::Namespace(n) => Object::from(n),
             ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).evaluate()?,

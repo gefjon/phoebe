@@ -77,5 +77,6 @@ pub unsafe fn deallocate(obj: Object) -> Result<(), DeallocError> {
         ExpandedObject::Cons(c) => Deallocate::deallocate(c),
         ExpandedObject::Namespace(n) => Deallocate::deallocate(n),
         ExpandedObject::HeapObject(h) => Deallocate::deallocate(h),
+        ExpandedObject::Function(f) => Deallocate::deallocate(f),
     }
 }

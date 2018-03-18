@@ -11,6 +11,7 @@ pub mod cons;
 pub mod heap_object;
 pub mod list;
 pub mod number;
+pub mod function;
 
 use self::conversions::*;
 
@@ -34,6 +35,7 @@ impl Object {
             ExpandedObject::Symbol(s) => s.should_dealloc(mark),
             ExpandedObject::Namespace(n) => unsafe { &*n }.should_dealloc(mark),
             ExpandedObject::HeapObject(h) => unsafe { &*h }.should_dealloc(mark),
+            ExpandedObject::Function(func) => unsafe { &*func }.should_dealloc(mark),
         }
     }
     /// Used by the garbage collector - if `self` is a heap object,
@@ -47,6 +49,7 @@ impl Object {
             ExpandedObject::Symbol(s) => s.gc_mark(mark),
             ExpandedObject::Namespace(n) => unsafe { &mut *n }.gc_mark(mark),
             ExpandedObject::HeapObject(h) => unsafe { &mut *h }.gc_mark(mark),
+            ExpandedObject::Function(func) => unsafe { &mut *func }.gc_mark(mark),
         }
     }
     /// This object represents the boolean `false`, or the null-pointer.
@@ -115,6 +118,7 @@ impl fmt::Display for ExpandedObject {
             ExpandedObject::Cons(c) => write!(f, "{}", unsafe { &*c }),
             ExpandedObject::Namespace(n) => write!(f, "{}", unsafe { &*n }),
             ExpandedObject::HeapObject(h) => write!(f, "{}", unsafe { &*h }),
+            ExpandedObject::Function(func) => write!(f, "{}", unsafe { &*func }),
         }
     }
 }
@@ -129,6 +133,7 @@ impl fmt::Debug for ExpandedObject {
             ExpandedObject::Cons(c) => write!(f, "{:?}", unsafe { &*c }),
             ExpandedObject::Namespace(n) => write!(f, "{:?}", unsafe { &*n }),
             ExpandedObject::HeapObject(h) => write!(f, "{:?}", unsafe { &*h }),
+            ExpandedObject::Function(func) => write!(f, "{:?}", unsafe { &*func }),
         }
     }
 }
@@ -155,6 +160,8 @@ impl convert::From<Object> for ExpandedObject {
             ExpandedObject::Namespace(unsafe { obj.into_unchecked() })
         } else if <*mut heap_object::HeapObject>::is_type(obj) {
             ExpandedObject::HeapObject(unsafe { obj.into_unchecked() })
+        } else if <*mut function::Function>::is_type(obj) {
+            ExpandedObject::Function(unsafe { obj.into_unchecked() })
         } else {
             unreachable!()
         }
@@ -175,4 +182,5 @@ pub enum ExpandedObject {
     Cons(*mut cons::Cons),
     Namespace(*mut namespace::Namespace),
     HeapObject(*mut heap_object::HeapObject),
+    Function(*mut function::Function),
 }

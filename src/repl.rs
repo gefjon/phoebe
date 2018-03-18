@@ -30,12 +30,7 @@ where I: Read,
             Ok(Some(obj)) => {
                 match obj.evaluate() {
                     Err(e) => writeln!(error, "{}", e)?,
-                    Ok(obj) => {
-                        match print(obj) {
-                            Err(e) => writeln!(error, "{}", e)?,
-                            Ok(s) => writeln!(output, "{}", s)?,
-                        }
-                    }
+                    Ok(obj) => writeln!(output, "{}", print(obj))?,
                 }
             }
         }
