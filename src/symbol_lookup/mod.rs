@@ -2,8 +2,9 @@ use types::{Object, reference, namespace};
 use types::symbol::{SymRef, Symbol};
 use allocate::Allocate;
 use types::conversions::*;
-use std::{sync};
+use std::{sync, cell};
 use std::collections::{HashMap};
+use gc;
 
 type Scope = Vec<&'static mut namespace::Namespace>;
 
@@ -13,16 +14,61 @@ lazy_static! {
     pub static ref SYMBOLS_HEAP: sync::Mutex<HashMap<Vec<u8>, SymRef>> = {
         sync::Mutex::new(HashMap::new())
     };
-    pub static ref SCOPE: sync::Mutex<Scope> = {
+}
+
+thread_local! {
+    static SCOPE: cell::RefCell<Scope> = {
         let global_namespace = namespace::Namespace::allocate(
             namespace::Namespace::default().with_name(
                 Object::from(make_symbol(GLOBAL_NAMESPACE_NAME))
             )
         );
-        sync::Mutex::new(vec![unsafe { global_namespace.into_unchecked() }])
+        cell::RefCell::new(vec![unsafe { global_namespace.into_unchecked() }])
     };
 }
 
+/// BUG: The `SCOPE` is thread local, but garbage collection is done
+/// globally. This means that the garbage collector cannot mark other
+/// threads' scopes and may deallocate them prematurely.
+pub fn gc_mark_scope(m: gc::GcMark) {
+    use gc::GarbageCollected;
+    SCOPE.with(|s| {
+        for nmspc in s.borrow_mut().iter_mut() {
+            nmspc.gc_mark(m);
+        }
+    });
+}
+
+pub fn add_namespace_to_scope(n: &[(SymRef, reference::Reference)]) {
+    let nmspc = namespace::Namespace::allocate(
+        n.iter().cloned().collect()
+    );
+    SCOPE.with(|s| {
+        s.borrow_mut().push(unsafe { nmspc.into_unchecked() });
+    });
+}
+
+/// This call closes the namespace created by
+/// `add_namespace_to_scope`. It is intended to be called only for
+/// local bindings such as `let` and function calls, and should only
+/// ever be called after a corresponding `add_namespace_to_scope` when
+/// it is known that the correct namespace is the top of the
+/// scope. Scopes should also be destroyed *before* their stack frames
+/// are closed using `stack::end_stack_frame` - otherwise their values
+/// will be references to garbage memory.
+pub fn close_namespace() {
+    SCOPE.with(|s| {
+        let mut scope = s.borrow_mut();
+        scope.pop().unwrap();
+        debug_assert!(!scope.is_empty());
+    });
+}
+
+/// Create a symbol, by returning a pointer to an existing one with
+/// the same name or by allocating a new one if no such exists. This
+/// is the *only legal way* to create a `Symbol` or a `SymRef` and it
+/// garuntees that `Symbol`s with the same name will be `eq` (pointer
+/// equal).
 pub fn make_symbol(s: &[u8]) -> SymRef {
     let mut sym_heap = SYMBOLS_HEAP.lock().unwrap();
     if !sym_heap.contains_key(s) {
@@ -33,7 +79,11 @@ pub fn make_symbol(s: &[u8]) -> SymRef {
     }
     *(sym_heap.get(s).unwrap())
 }
-        
+
+/// This method is called by `SymRef::evaluate`. It returns a
+/// reference to the value of the symbol currently on the top of the
+/// `SCOPE`, meaning that more recent local bindings are
+/// preferred. This is the behavior you expect.
 pub fn lookup_symbol(_s: SymRef) -> reference::Reference {
     unimplemented!()
 }

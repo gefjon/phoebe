@@ -1,11 +1,44 @@
-use types::{Object, ExpandedObject};
+use types::{Object, ExpandedObject, list};
 use symbol_lookup::{lookup_symbol};
 use gc::gc_maybe_pass;
+use stack::{StackOverflowError, StackUnderflowError};
+use std::convert;
 
 #[derive(Fail, Debug)]
 pub enum EvaluatorError {
-    #[fail(display = "I have not yet implemented EvaluatorError")]
-    DummyError,
+    #[fail(display = "{}", _0)]
+    StackOverflow(StackOverflowError),
+    #[fail(display = "{}", _0)]
+    StackUnderflow(StackUnderflowError),
+    #[fail(display = "The count {} is not compatible with the arglist {}", found, arglist)]
+    BadArgCount {
+        arglist: list::List,
+        found: usize,
+    }
+}
+
+unsafe impl Sync for EvaluatorError {}
+unsafe impl Send for EvaluatorError {}
+
+impl EvaluatorError {
+    pub fn bad_args_count(arglist: list::List, found: usize) -> Self {
+        EvaluatorError::BadArgCount {
+            arglist,
+            found,
+        }
+    }
+}
+
+impl convert::From<StackOverflowError> for EvaluatorError {
+    fn from(e: StackOverflowError) -> EvaluatorError {
+        EvaluatorError::StackOverflow(e)
+    }
+}
+
+impl convert::From<StackUnderflowError> for EvaluatorError {
+    fn from(e: StackUnderflowError) -> EvaluatorError {
+        EvaluatorError::StackUnderflow(e)
+    }
 }
 
 pub trait Evaluate {
@@ -34,4 +67,3 @@ impl Evaluate for ExpandedObject {
         })
     }
 }
-            

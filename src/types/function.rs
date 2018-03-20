@@ -4,11 +4,122 @@ use gc::{GcMark, GarbageCollected};
 use evaluator;
 use types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
+use evaluator::{EvaluatorError, Evaluate};
+use stack::StackUnderflowError;
 
 lazy_static! {
     static ref FUNCTION_TYPE_NAME: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"function")
     };
+    static ref OPTIONAL: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"&optional")
+    };
+    static ref REST: symbol::SymRef = {
+        ::symbol_lookup::make_symbol(b"&rest")
+    };
+}
+
+enum ArgType {
+    Mandatory,
+    Optional,
+    Rest,
+}
+
+impl Function {
+    pub fn call(&self, args: list::List) -> Result<Object, EvaluatorError> {
+        
+        let args = if self.should_evaluate_args() {
+            let mut evaled_args = list::List::nil();
+            for a in args {
+                evaled_args = evaled_args.push(a.evaluate()?);
+            }
+            evaled_args
+        } else {
+            args
+        };
+        self.put_args_on_stack(args)?;
+        let res = self.body.evaluate();
+        let second_res = self.end_stack_frame();
+        second_res.map_err(EvaluatorError::from).and(res)
+    }
+    fn should_evaluate_args(&self) -> bool {
+        if let FunctionBody::SpecialForm(_) = self.body {
+            false
+        } else {
+            true
+        }
+    }
+    fn put_args_on_stack(&self, mut args: list::List) -> Result<(), EvaluatorError> {
+        use stack::{push, end_stack_frame, ref_top};
+        use symbol_lookup::add_namespace_to_scope;
+
+        let mut arg_type = ArgType::Mandatory;
+        let mut n_args: usize = 0;
+        let mut stack_frame_length = 0;
+        let mut symbol_lookup_buf = Vec::new();
+        
+        for arg in self.arglist {
+            let arg_sym: symbol::SymRef = arg.maybe_into().unwrap();
+            if arg_sym == *OPTIONAL {
+                arg_type = ArgType::Optional;
+                continue;
+            } else if arg_sym == *REST {
+                arg_type = ArgType::Rest;
+                continue;
+            }
+            match arg_type {
+                ArgType::Mandatory => {
+                    if let Some(o) = args.next() {
+                        if let Err(e) = push(o) {
+                            end_stack_frame(n_args)?;
+                            return Err(e.into());
+                        } else {
+                            n_args += 1;
+                            stack_frame_length += 1;
+                        }
+                    } else {
+                        end_stack_frame(stack_frame_length)?;
+                        return Err(EvaluatorError::bad_args_count(self.arglist, n_args));
+                    }
+                }
+                ArgType::Optional => {
+                    let (o, narg) = if let Some(o) = args.next() {
+                        (o, 1)
+                    } else {
+                        (Object::nil(), 0)
+                    };
+                    if let Err(e) = push(o) {
+                        end_stack_frame(stack_frame_length)?;
+                        return Err(e.into());
+                    } else {
+                        n_args += narg;
+                        stack_frame_length += 1;
+                    }
+                }
+                ArgType::Rest => {
+                    if let Err(e) = push(Object::from(args)) {
+                        end_stack_frame(stack_frame_length)?;
+                        return Err(e.into());
+                    } else {
+                        n_args += args.count();
+                        stack_frame_length += 1;
+                        args = list::List::nil();
+                    }
+                }
+            }
+
+            symbol_lookup_buf.push((arg_sym, ref_top()));
+        }
+        add_namespace_to_scope(&symbol_lookup_buf);
+        Ok(())
+    }
+    fn end_stack_frame(&self) -> Result<(), StackUnderflowError> {
+        use symbol_lookup::close_namespace;
+        use stack::end_stack_frame;
+        
+        close_namespace();
+        end_stack_frame(self.stack_frame_length)
+    }
 }
 
 pub struct Function {
@@ -16,6 +127,7 @@ pub struct Function {
     name: Option<symbol::SymRef>,
     arglist: list::List,
     body: FunctionBody,
+    stack_frame_length: usize,
 }
 
 enum FunctionBody {
@@ -37,6 +149,22 @@ impl fmt::Display for FunctionBody {
 impl evaluator::Evaluate for Function {
     fn evaluate(&self) -> Result<Object, evaluator::EvaluatorError> {
         Ok(Object::from(self as *const Function as *mut Function))
+    }
+}
+
+impl evaluator::Evaluate for FunctionBody {
+    fn evaluate(&self) -> Result<Object, evaluator::EvaluatorError> {
+        match *self {
+            FunctionBody::Source(l) => {
+                let mut res = Object::nil();
+                for clause in l {
+                    res = clause.evaluate()?;
+                }
+                Ok(res)
+            }
+            FunctionBody::Builtin(b) => b(),
+            FunctionBody::SpecialForm(b) => b(),
+        }
     }
 }
 

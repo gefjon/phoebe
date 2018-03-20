@@ -1,7 +1,7 @@
 use std::sync::atomic;
 use std::default::Default;
-use stack::{current_stack_size, STACK};
-use allocate::{ALLOCED_OBJECTS, deallocate, Deallocate};
+use stack::gc_mark_stack;
+use allocate::{ALLOCED_OBJECTS, deallocate, Deallocate, alloced_count};
 
 static INITIAL_GC_THRESHOLD: usize = 4;
 
@@ -17,18 +17,12 @@ lazy_static! {
 pub type GcMark = usize;
 
 fn should_gc_run() -> bool {
-    current_stack_size() > GC_THRESHOLD.load(atomic::Ordering::SeqCst)
+    alloced_count() > GC_THRESHOLD.load(atomic::Ordering::SeqCst)
 }
 
 fn update_gc_threshold() {
     let old_thresh = GC_THRESHOLD.load(atomic::Ordering::SeqCst);
     GC_THRESHOLD.fetch_add(old_thresh, atomic::Ordering::SeqCst);
-}
-
-fn mark_stack(m: GcMark) {
-    for obj in STACK.lock().unwrap().iter() {
-        obj.gc_mark(m)
-    }
 }
 
 fn sweep(m: GcMark) {
@@ -45,18 +39,16 @@ fn sweep(m: GcMark) {
 }
 
 fn mark_scope(m: GcMark) {
-    use symbol_lookup::{SYMBOLS_HEAP, SCOPE};
+    use symbol_lookup::{SYMBOLS_HEAP, gc_mark_scope};
     for &s in SYMBOLS_HEAP.lock().unwrap().values() {
         s.gc_mark(m);
     }
-    for nmspc in SCOPE.lock().unwrap().iter_mut() {
-        nmspc.gc_mark(m);
-    }
+    gc_mark_scope(m);
 }
 
 pub fn gc_pass() {
     let mark = THE_GC_MARK.fetch_add(1, atomic::Ordering::SeqCst);
-    mark_stack(mark);
+    gc_mark_stack(mark);
     mark_scope(mark);
     sweep(mark);
     update_gc_threshold();

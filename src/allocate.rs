@@ -8,6 +8,10 @@ lazy_static! {
     };
 }
 
+pub fn alloced_count() -> usize {
+    ALLOCED_OBJECTS.lock().unwrap().len()
+}
+
 pub trait Allocate<R>
 where Object: convert::From<*mut Self> {
     /// This method should be defined by the receiver but not called

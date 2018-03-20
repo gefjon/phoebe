@@ -1,10 +1,10 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use std::collections::HashMap;
-use super::{Object, heap_object};
+use super::{Object, heap_object, reference};
 use types::symbol::SymRef;
 use super::conversions::*;
 use gc::{GcMark, GarbageCollected};
-use std::{convert, fmt};
+use std::{convert, fmt, iter};
 use std::default::Default;
 
 lazy_static! {
@@ -19,6 +19,21 @@ pub enum Namespace {
         gc_marking: GcMark,
         name: Option<Object>,
         table: HashMap<SymRef, *mut heap_object::HeapObject>,
+    },
+    Stack {
+        gc_marking: GcMark,
+        table: HashMap<SymRef, reference::Reference>,
+    }
+}
+
+impl iter::FromIterator<(SymRef, reference::Reference)> for Namespace {
+    fn from_iter<I>(iter: I) -> Namespace
+    where I: iter::IntoIterator<Item = (SymRef, reference::Reference)> {
+        let table = iter.into_iter().collect();
+        Namespace::Stack {
+            gc_marking: GcMark::default(),
+            table,
+        }
     }
 }
 
@@ -38,6 +53,9 @@ impl Namespace {
             Namespace::Heap { ref mut name, .. } => {
                 *name = Some(n);
             }
+            Namespace::Stack { .. } => {
+                panic!("Attempt to name a stack Namespace");
+            }
         }
         self
     }
@@ -48,6 +66,7 @@ impl fmt::Display for Namespace {
         match *self {
             Namespace::Heap { name: Some(name), .. } => write!(f, "[namespace {}]", name),
             Namespace::Heap { name: None, .. } => write!(f, "[namespace ANONYMOUS]"),
+            Namespace::Stack { .. } => write!(f, "[namespace STACK-FRAME]"),
         }
     }
 }
@@ -56,11 +75,13 @@ impl GarbageCollected for Namespace {
     fn my_marking(&self) -> &GcMark {
         match *self {
             Namespace::Heap { ref gc_marking, .. } => gc_marking,
+            Namespace::Stack { ref gc_marking, .. } => gc_marking,
         }
     }
     fn my_marking_mut(&mut self) -> &mut GcMark {
         match *self {
             Namespace::Heap { ref mut gc_marking, .. } => gc_marking,
+            Namespace::Stack { ref mut gc_marking, .. } => gc_marking,
         }
     }
     fn gc_mark_children(&mut self, mark: GcMark) {
@@ -69,6 +90,12 @@ impl GarbageCollected for Namespace {
                 for (&sym, &mut heapobj) in table {
                     sym.gc_mark(mark);
                     unsafe { &mut *heapobj }.gc_mark(mark);
+                }
+            }
+            Namespace::Stack { ref mut table, .. } => {
+                for (&sym, &mut reference) in table {
+                    sym.gc_mark(mark);
+                    (*reference).gc_mark(mark);
                 }
             }
         }

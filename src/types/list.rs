@@ -39,7 +39,24 @@ impl fmt::Display for List {
     }
 }
 
+impl fmt::Debug for List {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(c) = <&Cons>::maybe_from(*self) {
+            write!(f, "{:?}", c)
+        } else {
+            write!(f, "()")
+        }
+    }
+}
+
 impl List {
+    pub fn nil() -> List {
+        List::Nil
+    }
+    pub fn push(self, obj: Object) -> List {
+        let c = Cons::allocate(Cons::new(obj, self.into()));
+        unsafe { c.into_unchecked() }
+    }
     pub unsafe fn nreverse(mut self) -> List {
         let mut prev = Object::nil();
         loop {
