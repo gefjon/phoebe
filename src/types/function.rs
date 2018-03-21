@@ -1,10 +1,10 @@
-use types::{Object, symbol, list, cons};
+use types::{cons, list, symbol, Object};
 use types::conversions::*;
-use gc::{GcMark, GarbageCollected};
+use gc::{GarbageCollected, GcMark};
 use evaluator;
 use types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
-use evaluator::{EvaluatorError, Evaluate};
+use evaluator::{Evaluate, EvaluatorError};
 use stack::StackUnderflowError;
 
 lazy_static! {
@@ -47,9 +47,13 @@ impl Function {
             stack_frame_length: Function::count_stack_frame_length(arglist)?,
         })
     }
-    pub fn make_special_form(name: symbol::SymRef, arglist: list::List, body: &'static Fn() -> Result<Object, EvaluatorError>) -> Result<Function, ConversionError> {
+    pub fn make_special_form(
+        name: symbol::SymRef,
+        arglist: list::List,
+        body: &'static Fn() -> Result<Object, EvaluatorError>,
+    ) -> Result<Function, ConversionError> {
         use std::default::Default;
-        
+
         Ok(Function {
             gc_marking: GcMark::default(),
             name: Some(name),
@@ -58,7 +62,11 @@ impl Function {
             stack_frame_length: Function::count_stack_frame_length(arglist)?,
         })
     }
-    pub fn make_builtin(name: symbol::SymRef, arglist: list::List, body: &'static Fn() -> Result<Object, EvaluatorError>) -> Result<Function, ConversionError> {
+    pub fn make_builtin(
+        name: symbol::SymRef,
+        arglist: list::List,
+        body: &'static Fn() -> Result<Object, EvaluatorError>,
+    ) -> Result<Function, ConversionError> {
         Ok(Function {
             gc_marking: GcMark::default(),
             name: Some(name),
@@ -68,7 +76,6 @@ impl Function {
         })
     }
     pub fn call(&self, args: list::List) -> Result<Object, EvaluatorError> {
-        
         let args = if self.should_evaluate_args() {
             let mut evaled_args = list::List::nil();
             for a in args {
@@ -91,14 +98,14 @@ impl Function {
         }
     }
     fn put_args_on_stack(&self, mut args: list::List) -> Result<(), EvaluatorError> {
-        use stack::{push, end_stack_frame, ref_top};
+        use stack::{end_stack_frame, push, ref_top};
         use symbol_lookup::add_namespace_to_scope;
 
         let mut arg_type = ArgType::Mandatory;
         let mut n_args: usize = 0;
         let mut stack_frame_length = 0;
         let mut symbol_lookup_buf = Vec::new();
-        
+
         for arg in self.arglist {
             let arg_sym: symbol::SymRef = arg.maybe_into().unwrap();
             if arg_sym == *OPTIONAL {
@@ -157,7 +164,7 @@ impl Function {
     fn end_stack_frame(&self) -> Result<(), StackUnderflowError> {
         use symbol_lookup::close_namespace;
         use stack::end_stack_frame;
-        
+
         close_namespace();
         end_stack_frame(self.stack_frame_length)
     }
@@ -203,8 +210,7 @@ impl evaluator::Evaluate for FunctionBody {
                 }
                 Ok(res)
             }
-            FunctionBody::Builtin(b) => b(),
-            FunctionBody::SpecialForm(b) => b(),
+            FunctionBody::Builtin(b) | FunctionBody::SpecialForm(b) => b(),
         }
     }
 }
@@ -223,13 +229,10 @@ impl GarbageCollected for Function {
         if let Some(c) = <&mut cons::Cons>::maybe_from(self.arglist) {
             c.gc_mark(mark);
         }
-        match self.body {
-            FunctionBody::Source(b) => {
-                if let Some(c) = <&mut cons::Cons>::maybe_from(b) {
-                    c.gc_mark(mark);
-                }
+        if let FunctionBody::Source(b) = self.body {
+            if let Some(c) = <&mut cons::Cons>::maybe_from(b) {
+                c.gc_mark(mark);
             }
-            _ => (),
         }
     }
 }

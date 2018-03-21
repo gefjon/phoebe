@@ -1,4 +1,4 @@
-use types::{Object, reference, self, symbol};
+use types::{self, reference, symbol, Object};
 use types::conversions::*;
 use std::{cmp, convert};
 use symbol_lookup::make_symbol;
@@ -19,6 +19,7 @@ fn fits_in_an_int(f: f64) -> bool {
     f <= f64::from(::std::i32::MAX) && f >= f64::from(::std::i32::MIN)
 }
 
+#[cfg_attr(feature = "cargo-clippy", allow(float_cmp))]
 fn integerp(f: f64) -> bool {
     f.trunc() == f
 }

@@ -1,5 +1,5 @@
-extern crate phoebe;
 extern crate env_logger;
+extern crate phoebe;
 
 fn main() {
     env_logger::init();

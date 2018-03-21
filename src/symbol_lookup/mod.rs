@@ -1,9 +1,9 @@
-use types::{Object, reference, namespace};
+use types::{namespace, reference, Object};
 use types::symbol::{SymRef, Symbol};
 use allocate::Allocate;
 use types::conversions::*;
-use std::{sync, cell};
-use std::collections::{HashMap};
+use std::{cell, sync};
+use std::collections::HashMap;
 use gc;
 
 type Scope = Vec<&'static mut namespace::Namespace>;
@@ -51,9 +51,7 @@ pub fn add_heap_scope(n: &[(SymRef, Object)]) {
 }
 
 pub fn add_namespace_to_scope(n: &[(SymRef, reference::Reference)]) {
-    let nmspc = namespace::Namespace::allocate(
-        n.iter().cloned().collect()
-    );
+    let nmspc = namespace::Namespace::allocate(n.iter().cloned().collect());
     SCOPE.with(|s| {
         s.borrow_mut().push(unsafe { nmspc.into_unchecked() });
     });
@@ -100,7 +98,7 @@ pub fn lookup_symbol(sym: SymRef) -> reference::Reference {
         let mut scope = st.borrow_mut();
         {
             use std::iter::DoubleEndedIterator;
-            
+
             let mut iter = scope.iter();
             while let Some(n) = iter.next_back() {
                 if let Some(r) = n.get_sym_ref(sym) {

@@ -1,5 +1,5 @@
-use std::{convert, borrow, ops, fmt};
-use super::{Object, symbol};
+use std::{borrow, convert, fmt, ops};
+use super::{symbol, Object};
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
 
@@ -26,18 +26,14 @@ impl convert::From<*mut Object> for Reference {
 
 impl convert::From<Reference> for Object {
     fn from(r: Reference) -> Object {
-        Object(
-            ObjectTag::Reference.tag(r.0 as u64)
-        )
+        Object(ObjectTag::Reference.tag(r.0 as u64))
     }
 }
 
 impl FromUnchecked<Object> for Reference {
     unsafe fn from_unchecked(obj: Object) -> Reference {
         debug_assert!(Reference::is_type(obj));
-        Reference(
-            Reference::associated_tag().untag(obj.0) as *mut Object
-        )
+        Reference(Reference::associated_tag().untag(obj.0) as *mut Object)
     }
 }
 

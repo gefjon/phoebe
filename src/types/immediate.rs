@@ -1,4 +1,4 @@
-use types::pointer_tagging::{PointerTag, ObjectTag};
+use types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
 use super::Object;
 use super::conversions::*;
@@ -50,10 +50,8 @@ impl FromUnchecked<Object> for SpecialMarker {
     unsafe fn from_unchecked(obj: Object) -> SpecialMarker {
         debug_assert!(SpecialMarker::is_type(obj));
         match ImmediateTag::SpecialMarker.untag(obj.0) as u32 {
-            n if (SpecialMarker::Uninitialized as u32) == n => {
-                SpecialMarker::Uninitialized
-            }
-            n => panic!("{} is not a valid SpecialMarker", n)
+            n if (SpecialMarker::Uninitialized as u32) == n => SpecialMarker::Uninitialized,
+            n => panic!("{} is not a valid SpecialMarker", n),
         }
     }
 }
@@ -158,7 +156,11 @@ impl convert::From<SpecialMarker> for Immediate {
 impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Immediate::Bool(b) => if b { write!(f, "t") } else { write!(f, "nil") },
+            Immediate::Bool(b) => if b {
+                write!(f, "t")
+            } else {
+                write!(f, "nil")
+            },
             Immediate::Integer(n) => write!(f, "{}", n),
             Immediate::SpecialMarker(s) => write!(f, "{}", s),
         }
@@ -170,4 +172,3 @@ impl fmt::Debug for Immediate {
         write!(f, "[immediate {}]", self)
     }
 }
-            

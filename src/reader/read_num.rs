@@ -27,7 +27,7 @@ struct DecimalFp<'a> {
     sign: Sign,
     integral: &'a [u8],
     fractional: &'a [u8],
-    exp: i64
+    exp: i64,
 }
 
 impl<'a> DecimalFp<'a> {
@@ -40,7 +40,8 @@ impl<'a> DecimalFp<'a> {
         simplify(&mut self);
 
         let integral = parse_float_from_bytes_unchecked(self.integral);
-        let fractional = parse_float_from_bytes_unchecked(self.fractional) / power_of_ten(self.fractional.len() as i16);
+        let fractional = parse_float_from_bytes_unchecked(self.fractional)
+            / power_of_ten(self.fractional.len() as i16);
 
         let combined = integral + fractional;
 
@@ -83,7 +84,10 @@ fn parse_decimal(input: &[u8]) -> ParseDecimalResult {
                 ParseDecimalResult::Symbol(input)
             } else if let Some(exp) = parse_exp(&s[1..]) {
                 ParseDecimalResult::Float(DecimalFp {
-                    sign, integral, fractional: b"", exp
+                    sign,
+                    integral,
+                    fractional: b"",
+                    exp,
                 })
             } else {
                 ParseDecimalResult::Symbol(input)
@@ -97,12 +101,18 @@ fn parse_decimal(input: &[u8]) -> ParseDecimalResult {
             } else {
                 match s.first() {
                     None => ParseDecimalResult::Float(DecimalFp {
-                        sign, integral, fractional, exp: 0,
+                        sign,
+                        integral,
+                        fractional,
+                        exp: 0,
                     }),
                     Some(&b'e') | Some(&b'E') => {
                         if let Some(exp) = parse_exp(&s[1..]) {
                             ParseDecimalResult::Float(DecimalFp {
-                                sign, integral, fractional, exp
+                                sign,
+                                integral,
+                                fractional,
+                                exp,
                             })
                         } else {
                             ParseDecimalResult::Symbol(input)
@@ -192,7 +202,7 @@ fn simplify(decimal: &mut DecimalFp) {
     let trailing_zeros = decimal.fractional.iter().rev().take_while(is_zero).count();
     let end = decimal.fractional.len() - trailing_zeros;
     decimal.fractional = &decimal.fractional[..end];
-    
+
     if decimal.integral.is_empty() {
         // If the integral is zero and the fractional has leading
         // zeros, it is safe to remove those zeroes and adjust the
@@ -224,8 +234,9 @@ mod test {
     #[test]
     fn parse_decimals() {
         let res = parse_decimal(b"1.23");
-        assert_eq!(res, ParseDecimalResult::Float(
-            DecimalFp {
+        assert_eq!(
+            res,
+            ParseDecimalResult::Float(DecimalFp {
                 sign: Sign::Positive,
                 integral: b"1",
                 fractional: b"23",
@@ -237,8 +248,9 @@ mod test {
         assert_eq!(res, ParseDecimalResult::Integer(100));
 
         let res = parse_decimal(b"1E100");
-        assert_eq!(res, ParseDecimalResult::Float(
-            DecimalFp {
+        assert_eq!(
+            res,
+            ParseDecimalResult::Float(DecimalFp {
                 sign: Sign::Positive,
                 integral: b"1",
                 fractional: b"",
@@ -247,8 +259,9 @@ mod test {
         );
 
         let res = parse_decimal(b"-10e-2");
-        assert_eq!(res, ParseDecimalResult::Float(
-            DecimalFp {
+        assert_eq!(
+            res,
+            ParseDecimalResult::Float(DecimalFp {
                 sign: Sign::Negative,
                 integral: b"10",
                 fractional: b"",

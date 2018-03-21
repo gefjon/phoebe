@@ -1,5 +1,5 @@
-use std::{convert, fmt, default};
-use gc::{GcMark, GarbageCollected};
+use std::{convert, default, fmt};
+use gc::{GarbageCollected, GcMark};
 
 mod pointer_tagging;
 pub mod conversions;
@@ -29,8 +29,8 @@ impl Object {
     pub fn should_dealloc(self, mark: GcMark) -> bool {
         match ExpandedObject::from(self) {
             ExpandedObject::Float(_)
-                | ExpandedObject::Immediate(_)
-                | ExpandedObject::Reference(_) => false,
+            | ExpandedObject::Immediate(_)
+            | ExpandedObject::Reference(_) => false,
             ExpandedObject::Cons(c) => unsafe { &*c }.should_dealloc(mark),
             ExpandedObject::Symbol(s) => s.should_dealloc(mark),
             ExpandedObject::Namespace(n) => unsafe { &*n }.should_dealloc(mark),
@@ -63,9 +63,7 @@ impl Object {
     /// A special marker value (of type `Immediate(SpecialMarker)`)
     /// denoting an uninitialized value
     pub fn uninitialized() -> Self {
-        Object::from(
-            immediate::SpecialMarker::Uninitialized
-        )
+        Object::from(immediate::SpecialMarker::Uninitialized)
     }
     /// True iff self is exactly Object::nil()
     pub fn nilp(self) -> bool {
@@ -75,7 +73,7 @@ impl Object {
     pub fn eql(self, other: Object) -> bool {
         if let (Some(n), Some(m)) = (
             number::PhoebeNumber::maybe_from(self),
-            number::PhoebeNumber::maybe_from(other)
+            number::PhoebeNumber::maybe_from(other),
         ) {
             n == m
         } else {
@@ -86,9 +84,7 @@ impl Object {
         match (ExpandedObject::from(self), ExpandedObject::from(other)) {
             (ExpandedObject::Reference(r), _) => other.equal(*r),
             (_, ExpandedObject::Reference(r)) => self.equal(*r),
-            (ExpandedObject::Cons(a), ExpandedObject::Cons(b)) => unsafe {
-                *a == *b
-            }
+            (ExpandedObject::Cons(a), ExpandedObject::Cons(b)) => unsafe { *a == *b },
             (ExpandedObject::HeapObject(r), _) => other.equal(unsafe { **r }),
             (_, ExpandedObject::HeapObject(r)) => self.equal(unsafe { **r }),
             (_, _) => self.eql(other),

@@ -1,10 +1,10 @@
-use std::{convert, slice, fmt, str, ptr, mem, ops};
+use std::{convert, fmt, mem, ops, ptr, slice, str};
 use super::Object;
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
-use allocate::{Allocate, Deallocate, DeallocError};
-use gc::{GcMark, GarbageCollected};
-use std::heap::{Alloc, Heap, Layout, self};
+use allocate::{Allocate, DeallocError, Deallocate};
+use gc::{GarbageCollected, GcMark};
+use std::heap::{self, Alloc, Heap, Layout};
 use symbol_lookup::make_symbol;
 
 lazy_static! {
@@ -95,7 +95,7 @@ impl Allocate<Symbol> for Symbol {
 impl<'any> Allocate<&'any [u8]> for Symbol {
     fn alloc_one_and_initialize(text: &[u8]) -> *mut Symbol {
         use std::default::Default;
-        
+
         let layout = Symbol::make_layout(text.len());
         let pointer = match unsafe { Heap.alloc(layout) } {
             Ok(p) => p,
@@ -116,9 +116,7 @@ impl Deallocate for Symbol {
         if p.is_null() {
             Err(DeallocError::NullPointer)
         } else {
-            ptr::drop_in_place(
-                (&mut *p).as_mut() as *mut [u8]
-            );
+            ptr::drop_in_place((&mut *p).as_mut() as *mut [u8]);
             let layout = (&*p).my_layout();
             heap::Heap.dealloc(p as *mut u8, layout);
             Ok(())
@@ -146,7 +144,7 @@ impl Symbol {
     fn make_layout(len: usize) -> Layout {
         Layout::from_size_align(
             mem::size_of::<Symbol>() + len - 1,
-            mem::align_of::<Symbol>()
+            mem::align_of::<Symbol>(),
         ).unwrap()
     }
     pub fn len(&self) -> usize {
@@ -174,7 +172,11 @@ impl convert::AsMut<[u8]> for Symbol {
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", str::from_utf8(self.as_ref()).unwrap_or("##UNPRINTABLE##"))
+        write!(
+            f,
+            "{}",
+            str::from_utf8(self.as_ref()).unwrap_or("##UNPRINTABLE##")
+        )
     }
 }
 
@@ -231,7 +233,9 @@ mod test {
     #[test]
     fn tag_and_untag() {
         let obj = Object::from(SymRef(ptr::null_mut()));
-        assert_eq!(SymRef(ptr::null_mut()), unsafe { SymRef::from_unchecked(obj) });
+        assert_eq!(SymRef(ptr::null_mut()), unsafe {
+            SymRef::from_unchecked(obj)
+        });
 
         let nonnull = 0xdead_beef as *mut Symbol;
         let obj = Object::from(SymRef(nonnull));

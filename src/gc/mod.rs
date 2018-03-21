@@ -1,7 +1,7 @@
 use std::sync::atomic;
 use std::default::Default;
 use stack::gc_mark_stack;
-use allocate::{ALLOCED_OBJECTS, deallocate, Deallocate, alloced_count};
+use allocate::{alloced_count, deallocate, Deallocate, ALLOCED_OBJECTS};
 
 static INITIAL_GC_THRESHOLD: usize = 4;
 
@@ -41,7 +41,7 @@ fn sweep(m: GcMark) {
 }
 
 fn mark_scope(m: GcMark) {
-    use symbol_lookup::{SYMBOLS_HEAP, gc_mark_scope};
+    use symbol_lookup::{gc_mark_scope, SYMBOLS_HEAP};
     for &s in SYMBOLS_HEAP.lock().unwrap().values() {
         s.gc_mark(m);
     }

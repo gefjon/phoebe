@@ -1,4 +1,4 @@
-use std::{convert};
+use std::convert;
 
 // pub const POINTER_TAGGING_MASK: u64 = 0b111;
 pub const OBJECT_TAG_MASK: u64 = 0b1111 << 48;
@@ -20,16 +20,14 @@ pub trait PointerTag: Into<u64> + Copy {
         (ptr & Self::mask_bits()) == self.into()
     }
     fn val_will_fit(val: u64) -> bool {
-        (val & Self::parent_mask()) == 0
-            && (val & Self::mask_bits()) == 0
+        (val & Self::parent_mask()) == 0 && (val & Self::mask_bits()) == 0
     }
     fn tag(self, ptr: u64) -> u64 {
         debug_assert!((ptr & Self::mask_bits()) == 0);
         self.into() ^ ptr ^ Self::parent_tag()
     }
     fn is_of_type(self, ptr: u64) -> bool {
-        Self::is_correct_parent(ptr)
-            && self.tag_bits_match(ptr)
+        Self::is_correct_parent(ptr) && self.tag_bits_match(ptr)
     }
     fn untag(self, ptr: u64) -> u64 {
         debug_assert!(self.is_of_type(ptr));

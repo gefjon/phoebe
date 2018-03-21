@@ -1,7 +1,7 @@
-use types::{Object, symbol, pointer_tagging};
+use types::{pointer_tagging, symbol, Object};
 use types::conversions::*;
 use types::cons::Cons;
-use std::{mem, convert, iter, cmp, fmt};
+use std::{cmp, convert, fmt, iter, mem};
 use allocate::Allocate;
 
 lazy_static! {
@@ -82,7 +82,9 @@ impl List {
         }
     }
     pub fn backwards_list_from<I>(iter: I) -> List
-    where I: iter::IntoIterator<Item = Object> {
+    where
+        I: iter::IntoIterator<Item = Object>,
+    {
         let mut head = Object::nil();
         for el in iter {
             head = Cons::allocate(Cons::new(el, head));
@@ -92,12 +94,11 @@ impl List {
 }
 
 impl<O> iter::FromIterator<O> for List
-where Object: convert::From<O> {
+where
+    Object: convert::From<O>,
+{
     fn from_iter<T: iter::IntoIterator<Item = O>>(iter: T) -> List {
-        let backwards = List::backwards_list_from(
-            iter.into_iter()
-                .map(Object::from)
-        );
+        let backwards = List::backwards_list_from(iter.into_iter().map(Object::from));
         unsafe { backwards.nreverse() }
     }
 }
@@ -110,7 +111,6 @@ impl convert::From<List> for Object {
         }
     }
 }
-
 
 impl iter::Iterator for List {
     type Item = Object;

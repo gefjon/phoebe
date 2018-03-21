@@ -3,7 +3,7 @@ macro_rules! special_form {
         {
             use $crate::types::function::Function;
             use $crate::allocate::Allocate;
-            
+
             let name = $crate::symbol_lookup::make_symbol(
                 ::std::convert::AsRef::<[u8]>::as_ref($name)
             );
@@ -30,7 +30,7 @@ macro_rules! builtin_func {
         {
             use $crate::types::function::Function;
             use $crate::allocate::Allocate;
-            
+
             let name = $crate::symbol_lookup::make_symbol(
                 ::std::convert::AsRef::<[u8]>::as_ref($name)
             );

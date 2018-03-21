@@ -1,5 +1,5 @@
 use std::io::prelude::*;
-use std::{io, convert};
+use std::{convert, io};
 use reader::read;
 use evaluator::Evaluate;
 use printer::print;
@@ -17,10 +17,16 @@ impl convert::From<io::Error> for ReplError {
     }
 }
 
-pub fn read_eval_print_loop<I, O, E>(input: &mut I, output: &mut O, error: &mut E) -> Result<(), ReplError>
-where I: Read,
-      O: Write,
-      E: Write {
+pub fn read_eval_print_loop<I, O, E>(
+    input: &mut I,
+    output: &mut O,
+    error: &mut E,
+) -> Result<(), ReplError>
+where
+    I: Read,
+    O: Write,
+    E: Write,
+{
     make_builtins();
     let input_iter = &mut input.bytes().map(Result::unwrap).peekable();
     loop {
@@ -29,12 +35,10 @@ where I: Read,
             Ok(None) => {
                 return Ok(());
             }
-            Ok(Some(obj)) => {
-                match obj.evaluate() {
-                    Err(e) => writeln!(error, "{}", e)?,
-                    Ok(obj) => writeln!(output, "{}", print(obj))?,
-                }
-            }
+            Ok(Some(obj)) => match obj.evaluate() {
+                Err(e) => writeln!(error, "{}", e)?,
+                Ok(obj) => writeln!(output, "{}", print(obj))?,
+            },
         }
     }
 }
@@ -51,7 +55,10 @@ mod test {
 
         read_eval_print_loop(&mut input, &mut output, &mut error).unwrap();
         if !error.is_empty() {
-            panic!("read_eval_print_loop errored: {}", str::from_utf8(&error).unwrap());
+            panic!(
+                "read_eval_print_loop errored: {}",
+                str::from_utf8(&error).unwrap()
+            );
         }
         assert_eq!(str::from_utf8(&output).unwrap(), "(1 2 3 4)\n");
     }

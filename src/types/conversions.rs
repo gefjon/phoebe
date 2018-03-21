@@ -1,4 +1,4 @@
-use types::{Object, reference, symbol, pointer_tagging};
+use types::{pointer_tagging, reference, symbol, Object};
 use types::pointer_tagging::PointerTag;
 
 #[derive(Fail, Debug)]
@@ -34,7 +34,9 @@ pub trait TryInto<O: Sized>: Sized {
 }
 
 impl<T> TryFrom<Object> for T
-where T: MaybeFrom<Object> + FromObject {
+where
+    T: MaybeFrom<Object> + FromObject,
+{
     type Error = ConversionError;
     fn try_from(obj: Object) -> Result<T, ConversionError> {
         if let Some(v) = T::maybe_from(obj) {
@@ -48,7 +50,9 @@ where T: MaybeFrom<Object> + FromObject {
 }
 
 impl<T, O> TryInto<T> for O
-where T: TryFrom<O> {
+where
+    T: TryFrom<O>,
+{
     type Error = T::Error;
     fn try_into(self) -> Result<T, Self::Error> {
         T::try_from(self)
@@ -108,17 +112,18 @@ pub trait FromObject {
     /// A generalization of `is_type`; also returns `true` if `obj` is
     /// a `Reference` pointing to a correctly tagged `Self`.
     fn derefs_to(obj: Object) -> bool {
-        Self::is_type(obj)
-            || if let Some(r) = reference::Reference::maybe_from(obj) {
-                Self::derefs_to(*r)
-            } else {
-                false
-            }
+        Self::is_type(obj) || if let Some(r) = reference::Reference::maybe_from(obj) {
+            Self::derefs_to(*r)
+        } else {
+            false
+        }
     }
 }
 
 impl<T> MaybeFrom<Object> for T
-where T: FromUnchecked<Object> + FromObject {
+where
+    T: FromUnchecked<Object> + FromObject,
+{
     default fn maybe_from(obj: Object) -> Option<T> {
         if <T as FromObject>::is_type(obj) {
             Some(unsafe { T::from_unchecked(obj) })
@@ -131,14 +136,18 @@ where T: FromUnchecked<Object> + FromObject {
 }
 
 impl<T, O> IntoUnchecked<T> for O
-where T: FromUnchecked<O> {
+where
+    T: FromUnchecked<O>,
+{
     unsafe fn into_unchecked(self) -> T {
         T::from_unchecked(self)
     }
 }
 
 impl<T, O> MaybeInto<T> for O
-where T: MaybeFrom<O> {
+where
+    T: MaybeFrom<O>,
+{
     fn maybe_into(self) -> Option<T> {
         T::maybe_from(self)
     }

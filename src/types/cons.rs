@@ -1,8 +1,8 @@
-use types::{Object, reference, symbol};
+use types::{reference, symbol, Object};
 use types::conversions::*;
-use gc::{GcMark, GarbageCollected};
+use gc::{GarbageCollected, GcMark};
 use types::pointer_tagging::{ObjectTag, PointerTag};
-use std::{convert, fmt, cmp};
+use std::{cmp, convert, fmt};
 use evaluator::{Evaluate, EvaluatorError};
 
 lazy_static! {
@@ -54,7 +54,9 @@ impl Evaluate for Cons {
 
 impl fmt::Display for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let &Cons { car, cdr: mut curr, .. } = self;
+        let &Cons {
+            car, cdr: mut curr, ..
+        } = self;
         write!(f, "({}", car)?;
         loop {
             if let Some(&Cons { car, cdr, .. }) = <&Cons>::maybe_from(curr) {
@@ -118,11 +120,8 @@ mod test {
             Object::from(1i32),
             Cons::allocate(Cons::new(
                 Object::from(2i32),
-                Cons::allocate(Cons::new(
-                    Object::from(3i32),
-                    Object::from(4i32)
-                ))
-            ))
+                Cons::allocate(Cons::new(Object::from(3i32), Object::from(4i32))),
+            )),
         );
         assert_eq!(format!("{}", c), "(1 2 3 . 4)");
     }

@@ -1,5 +1,5 @@
-use types::{Object, ExpandedObject};
-use std::{sync, convert, heap, ptr};
+use types::{ExpandedObject, Object};
+use std::{convert, heap, ptr, sync};
 use std::heap::Alloc;
 
 lazy_static! {
@@ -13,7 +13,9 @@ pub fn alloced_count() -> usize {
 }
 
 pub trait Allocate<R>
-where Object: convert::From<*mut Self> {
+where
+    Object: convert::From<*mut Self>,
+{
     /// This method should be defined by the receiver but not called
     /// except by `Allocate::allocate`. It is responsible for
     /// converting a source of type `R` into a stack-allocated
@@ -35,8 +37,10 @@ pub trait Deallocate {
 }
 
 impl<T, R> Allocate<R> for T
-where Object: convert::From<*mut T>,
-T: convert::From<R> {
+where
+    Object: convert::From<*mut T>,
+    T: convert::From<R>,
+{
     default fn alloc_one_and_initialize(raw: R) -> *mut T {
         let pointer = match heap::Heap.alloc_one() {
             Ok(p) => p.as_ptr(),
@@ -50,7 +54,9 @@ T: convert::From<R> {
 }
 
 impl<T> Deallocate for T
-where Object: convert::From<*mut T> {
+where
+    Object: convert::From<*mut T>,
+{
     default unsafe fn deallocate(obj: *mut T) -> Result<(), DeallocError> {
         match ptr::NonNull::new(obj) {
             Some(p) => {
@@ -62,7 +68,6 @@ where Object: convert::From<*mut T> {
         }
     }
 }
-    
 
 #[derive(Fail, Debug)]
 pub enum DeallocError {
@@ -74,9 +79,9 @@ pub enum DeallocError {
 
 pub unsafe fn deallocate(obj: Object) -> Result<(), DeallocError> {
     match ExpandedObject::from(obj) {
-        ExpandedObject::Float(_)
-            | ExpandedObject::Immediate(_)
-            | ExpandedObject::Reference(_) => Err(DeallocError::ImmediateType),
+        ExpandedObject::Float(_) | ExpandedObject::Immediate(_) | ExpandedObject::Reference(_) => {
+            Err(DeallocError::ImmediateType)
+        }
         ExpandedObject::Symbol(s) => Deallocate::deallocate(s.into()),
         ExpandedObject::Cons(c) => Deallocate::deallocate(c),
         ExpandedObject::Namespace(n) => Deallocate::deallocate(n),

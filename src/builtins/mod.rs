@@ -1,4 +1,4 @@
-use types::{Object};
+use types::Object;
 use types::list::List;
 use types::cons::Cons;
 use types::conversions::*;
@@ -6,7 +6,8 @@ use types::symbol::SymRef;
 use evaluator::{Evaluate, EvaluatorError};
 use symbol_lookup;
 
-#[macro_use] mod macros;
+#[macro_use]
+mod macros;
 
 pub fn make_builtins() {
     info!("Making builtins.");

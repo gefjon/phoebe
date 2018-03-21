@@ -1,5 +1,5 @@
-use types::{Object, ExpandedObject, list};
-use symbol_lookup::{lookup_symbol};
+use types::{list, ExpandedObject, Object};
+use symbol_lookup::lookup_symbol;
 use gc::gc_maybe_pass;
 use stack::{StackOverflowError, StackUnderflowError};
 use std::convert;
@@ -12,15 +12,11 @@ pub enum EvaluatorError {
     #[fail(display = "{}", _0)]
     StackUnderflow(StackUnderflowError),
     #[fail(display = "The count {} is not compatible with the arglist {}", found, arglist)]
-    BadArgCount {
-        arglist: list::List,
-        found: usize,
-    },
+    BadArgCount { arglist: list::List, found: usize },
     #[fail(display = "{}", _0)]
     TypeError(ConversionError),
     #[fail(display = "Found an improperly-terminated list where a proper one was expected")]
     ImproperList,
-    
 }
 
 unsafe impl Sync for EvaluatorError {}
@@ -28,10 +24,7 @@ unsafe impl Send for EvaluatorError {}
 
 impl EvaluatorError {
     pub fn bad_args_count(arglist: list::List, found: usize) -> Self {
-        EvaluatorError::BadArgCount {
-            arglist,
-            found,
-        }
+        EvaluatorError::BadArgCount { arglist, found }
     }
 }
 
@@ -59,11 +52,11 @@ pub trait Evaluate {
 
 impl Evaluate for Object {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
-        use stack::{push, pop};
+        use stack::{pop, push};
         info!("Evaluating {}.", self);
 
         push(*self)?;
-        
+
         let res = ExpandedObject::from(*self).evaluate();
         if !res.is_err() {
             debug!("Not an error; might garbage collect.");
@@ -74,10 +67,10 @@ impl Evaluate for Object {
             // (yet), those objects may be deallocated prematurely.
             gc_maybe_pass();
         }
-        
+
         let _popped = pop()?;
         debug_assert!(_popped == *self);
-        
+
         res
     }
 }

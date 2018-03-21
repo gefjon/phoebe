@@ -1,4 +1,4 @@
-use std::{cell};
+use std::cell;
 use types::Object;
 use types::reference::Reference;
 use gc;
@@ -56,7 +56,7 @@ pub struct StackUnderflowError {}
 /// will.
 pub fn push(obj: Object) -> Result<Reference, StackOverflowError> {
     use std::ops::IndexMut;
-    
+
     STACK.with(|s| {
         let mut stack = s.borrow_mut();
         let len = stack.len();

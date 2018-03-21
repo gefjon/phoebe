@@ -1,5 +1,5 @@
-use types::{Object, symbol, reference};
-use gc::{GcMark, GarbageCollected};
+use types::{reference, symbol, Object};
+use gc::{GarbageCollected, GcMark};
 use types::pointer_tagging::{ObjectTag, PointerTag};
 use types::conversions::*;
 use std::{convert, fmt, ops};
@@ -64,9 +64,7 @@ impl<'any> convert::From<&'any mut HeapObject> for reference::Reference {
 
 impl convert::From<*mut HeapObject> for Object {
     fn from(o: *mut HeapObject) -> Object {
-        Object(
-            ObjectTag::HeapObject.tag(o as u64)
-        )
+        Object(ObjectTag::HeapObject.tag(o as u64))
     }
 }
 

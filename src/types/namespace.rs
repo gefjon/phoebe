@@ -1,9 +1,9 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use std::collections::HashMap;
-use super::{Object, heap_object, reference};
+use super::{heap_object, reference, Object};
 use types::symbol::SymRef;
 use super::conversions::*;
-use gc::{GcMark, GarbageCollected};
+use gc::{GarbageCollected, GcMark};
 use std::{convert, fmt, iter};
 use std::default::Default;
 
@@ -23,12 +23,14 @@ pub enum Namespace {
     Stack {
         gc_marking: GcMark,
         table: HashMap<SymRef, reference::Reference>,
-    }
+    },
 }
 
 impl iter::FromIterator<(SymRef, reference::Reference)> for Namespace {
     fn from_iter<I>(iter: I) -> Namespace
-    where I: iter::IntoIterator<Item = (SymRef, reference::Reference)> {
+    where
+        I: iter::IntoIterator<Item = (SymRef, reference::Reference)>,
+    {
         let table = iter.into_iter().collect();
         Namespace::Stack {
             gc_marking: GcMark::default(),
@@ -39,14 +41,18 @@ impl iter::FromIterator<(SymRef, reference::Reference)> for Namespace {
 
 impl iter::FromIterator<(SymRef, Object)> for Namespace {
     fn from_iter<I>(iter: I) -> Namespace
-    where I: iter::IntoIterator<Item = (SymRef, Object)> {
+    where
+        I: iter::IntoIterator<Item = (SymRef, Object)>,
+    {
         use types::heap_object::HeapObject;
         use allocate::Allocate;
-        
-        let table = iter.into_iter().map(|(r, o)| {
-            let h = HeapObject::allocate(HeapObject::around(o));
-            (r, unsafe { <*mut HeapObject>::from_unchecked(h) })
-        }).collect();
+
+        let table = iter.into_iter()
+            .map(|(r, o)| {
+                let h = HeapObject::allocate(HeapObject::around(o));
+                (r, unsafe { <*mut HeapObject>::from_unchecked(h) })
+            })
+            .collect();
         Namespace::Heap {
             gc_marking: GcMark::default(),
             name: None,
@@ -79,26 +85,22 @@ impl Namespace {
     }
     pub fn get_sym_ref(&self, sym: SymRef) -> Option<reference::Reference> {
         match *self {
-            Namespace::Heap { ref table, .. } => {
-                table.get(&sym).map(|&h| {
-                    reference::Reference::from(unsafe { &mut *h })
-                })
-            }
-            Namespace::Stack { ref table, .. } => {
-                table.get(&sym).cloned()
-            }
+            Namespace::Heap { ref table, .. } => table
+                .get(&sym)
+                .map(|&h| reference::Reference::from(unsafe { &mut *h })),
+            Namespace::Stack { ref table, .. } => table.get(&sym).cloned(),
         }
     }
     pub fn make_sym_ref(&mut self, sym: SymRef) -> reference::Reference {
         use std::default::Default;
         use allocate::Allocate;
-        
+
         match *self {
             Namespace::Heap { ref mut table, .. } => {
                 let p = *(table.entry(sym).or_insert_with(|| {
-                    let h = heap_object::HeapObject::allocate(
-                        heap_object::HeapObject::around(Object::default())
-                    );
+                    let h = heap_object::HeapObject::allocate(heap_object::HeapObject::around(
+                        Object::default(),
+                    ));
                     unsafe { h.into_unchecked() }
                 }));
                 unsafe { &mut *p }.into()
@@ -111,7 +113,9 @@ impl Namespace {
 impl fmt::Display for Namespace {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Namespace::Heap { name: Some(name), .. } => write!(f, "[namespace {}]", name),
+            Namespace::Heap {
+                name: Some(name), ..
+            } => write!(f, "[namespace {}]", name),
             Namespace::Heap { name: None, .. } => write!(f, "[namespace ANONYMOUS]"),
             Namespace::Stack { .. } => write!(f, "[namespace STACK-FRAME]"),
         }
@@ -121,30 +125,31 @@ impl fmt::Display for Namespace {
 impl GarbageCollected for Namespace {
     fn my_marking(&self) -> &GcMark {
         match *self {
-            Namespace::Heap { ref gc_marking, .. } => gc_marking,
-            Namespace::Stack { ref gc_marking, .. } => gc_marking,
+            Namespace::Heap { ref gc_marking, .. } | Namespace::Stack { ref gc_marking, .. } => {
+                gc_marking
+            }
         }
     }
     fn my_marking_mut(&mut self) -> &mut GcMark {
         match *self {
-            Namespace::Heap { ref mut gc_marking, .. } => gc_marking,
-            Namespace::Stack { ref mut gc_marking, .. } => gc_marking,
+            Namespace::Heap {
+                ref mut gc_marking, ..
+            }
+            | Namespace::Stack {
+                ref mut gc_marking, ..
+            } => gc_marking,
         }
     }
     fn gc_mark_children(&mut self, mark: GcMark) {
         match *self {
-            Namespace::Heap { ref mut table, .. } => {
-                for (&sym, &mut heapobj) in table {
-                    sym.gc_mark(mark);
-                    unsafe { &mut *heapobj }.gc_mark(mark);
-                }
-            }
-            Namespace::Stack { ref mut table, .. } => {
-                for (&sym, &mut reference) in table {
-                    sym.gc_mark(mark);
-                    (*reference).gc_mark(mark);
-                }
-            }
+            Namespace::Heap { ref mut table, .. } => for (&sym, &mut heapobj) in table {
+                sym.gc_mark(mark);
+                unsafe { &mut *heapobj }.gc_mark(mark);
+            },
+            Namespace::Stack { ref mut table, .. } => for (&sym, &mut reference) in table {
+                sym.gc_mark(mark);
+                (*reference).gc_mark(mark);
+            },
         }
     }
 }
