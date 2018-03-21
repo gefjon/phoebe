@@ -8,5 +8,5 @@ fn main() {
     let mut input = stdin();
     let mut output = stdout();
 
-    phoebe::repl::read_eval_print_loop(&mut input, &mut output, &mut err).unwrap();
+    phoebe::repl::read_eval_print_loop(&mut input, &mut output, &mut err, true).unwrap();
 }

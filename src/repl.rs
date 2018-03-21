@@ -5,6 +5,8 @@ use evaluator::Evaluate;
 use printer::print;
 use builtins::make_builtins;
 
+const PROMPT: &[u8] = b"phoebe> ";
+
 #[derive(Fail, Debug)]
 pub enum ReplError {
     #[fail(display = "IO error {}", _0)]
@@ -21,6 +23,7 @@ pub fn read_eval_print_loop<I, O, E>(
     input: &mut I,
     output: &mut O,
     error: &mut E,
+    should_prompt: bool,
 ) -> Result<(), ReplError>
 where
     I: Read,
@@ -30,6 +33,9 @@ where
     make_builtins();
     let input_iter = &mut input.bytes().map(Result::unwrap).peekable();
     loop {
+        if should_prompt {
+            prompt(output)?;
+        }
         match read(input_iter) {
             Err(e) => writeln!(error, "{}", e)?,
             Ok(None) => {
@@ -43,6 +49,15 @@ where
     }
 }
 
+fn prompt<O>(output: &mut O) -> Result<(), ReplError>
+where
+    O: Write,
+{
+    output.write_all(PROMPT)?;
+    output.flush()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -53,7 +68,7 @@ mod test {
         let mut output: Vec<u8> = Vec::new();
         let mut error: Vec<u8> = Vec::new();
 
-        read_eval_print_loop(&mut input, &mut output, &mut error).unwrap();
+        read_eval_print_loop(&mut input, &mut output, &mut error, false).unwrap();
         if !error.is_empty() {
             panic!(
                 "read_eval_print_loop errored: {}",
