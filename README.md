@@ -43,6 +43,10 @@ any time.
     * [ ] `ceil`
     * [ ] `trunc`
     * [ ] `round`
+    * [ ] `assert`
+    * [ ] `and`
+    * [ ] `or`
+    * [ ] `xor`
     * [ ] ...and many more!
 - [ ] Write tests for built-in functions and special forms
   + Special forms:
@@ -53,6 +57,7 @@ any time.
     * [x] `list`
 - [ ] Strings
 - [ ] Arrays
+- [ ] I/O?
 - [ ] Threading?
 - [ ] Byte-compilation?
 - [ ] FFI?
