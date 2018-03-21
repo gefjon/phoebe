@@ -42,7 +42,13 @@ impl Cons {
 
 impl Evaluate for Cons {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
-        unimplemented!()
+        use types::function::Function;
+        use types::list::List;
+
+        let mut l: List = Object::from(self as *const Cons as *mut Cons).try_into()?;
+        let f = l.next().unwrap();
+        let func: &Function = f.evaluate()?.try_into()?;
+        func.call(l)
     }
 }
 

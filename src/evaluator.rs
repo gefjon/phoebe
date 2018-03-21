@@ -3,6 +3,7 @@ use symbol_lookup::{lookup_symbol};
 use gc::gc_maybe_pass;
 use stack::{StackOverflowError, StackUnderflowError};
 use std::convert;
+use types::conversions::ConversionError;
 
 #[derive(Fail, Debug)]
 pub enum EvaluatorError {
@@ -14,7 +15,12 @@ pub enum EvaluatorError {
     BadArgCount {
         arglist: list::List,
         found: usize,
-    }
+    },
+    #[fail(display = "{}", _0)]
+    TypeError(ConversionError),
+    #[fail(display = "Found an improperly-terminated list where a proper one was expected")]
+    ImproperList,
+    
 }
 
 unsafe impl Sync for EvaluatorError {}
@@ -26,6 +32,12 @@ impl EvaluatorError {
             arglist,
             found,
         }
+    }
+}
+
+impl convert::From<ConversionError> for EvaluatorError {
+    fn from(e: ConversionError) -> EvaluatorError {
+        EvaluatorError::TypeError(e)
     }
 }
 
@@ -47,8 +59,25 @@ pub trait Evaluate {
 
 impl Evaluate for Object {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
+        use stack::{push, pop};
+        info!("Evaluating {}.", self);
+
+        push(*self)?;
+        
         let res = ExpandedObject::from(*self).evaluate();
-        gc_maybe_pass();
+        if !res.is_err() {
+            debug!("Not an error; might garbage collect.");
+            // it is only safe to garbage-collect if `evaluate`
+            // returned `Ok` - `EvaluatorError`s can contain
+            // references to garbage-collected objects, but since
+            // `EvaluatorError`s are not themselves garbage-collected
+            // (yet), those objects may be deallocated prematurely.
+            gc_maybe_pass();
+        }
+        
+        let _popped = pop()?;
+        debug_assert!(_popped == *self);
+        
         res
     }
 }

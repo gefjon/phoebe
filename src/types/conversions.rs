@@ -1,6 +1,12 @@
 use types::{Object, reference, symbol, pointer_tagging};
 use types::pointer_tagging::PointerTag;
 
+#[derive(Fail, Debug)]
+#[fail(display = "Expected a value of type {}.", wanted_type)]
+pub struct ConversionError {
+    pub wanted_type: symbol::SymRef,
+}
+
 lazy_static! {
     static ref FLOAT_TYPE_NAME: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"float")
@@ -15,6 +21,38 @@ lazy_static! {
     static ref BOOL_TYPE_NAME: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"boolean")
     };
+}
+
+pub trait TryFrom<T: Sized>: Sized {
+    type Error: Sized;
+    fn try_from(t: T) -> Result<Self, Self::Error>;
+}
+
+pub trait TryInto<O: Sized>: Sized {
+    type Error: Sized;
+    fn try_into(self) -> Result<O, Self::Error>;
+}
+
+impl<T> TryFrom<Object> for T
+where T: MaybeFrom<Object> + FromObject {
+    type Error = ConversionError;
+    fn try_from(obj: Object) -> Result<T, ConversionError> {
+        if let Some(v) = T::maybe_from(obj) {
+            Ok(v)
+        } else {
+            Err(ConversionError {
+                wanted_type: T::type_name(),
+            })
+        }
+    }
+}
+
+impl<T, O> TryInto<T> for O
+where T: TryFrom<O> {
+    type Error = T::Error;
+    fn try_into(self) -> Result<T, Self::Error> {
+        T::try_from(self)
+    }
 }
 
 /// This trait is analogous to `std::convert::From` and `TryFrom`,

@@ -65,22 +65,35 @@ where I: Iterator<Item = u8> {
 
 pub fn read<I>(input: &mut Peekable<I>) -> Result<Option<Object>, ReaderError>
 where I: Iterator<Item = u8> {
+    debug!("Call to `read`.");
     match peek(input) {
         Some(w) if WHITESPACE.contains(&w) => {
+            debug!("Whitespace; skipping.");
             next(input);
             read(input)
         }
         Some(b'"') => {
+            debug!("A \"; reading a string.");
             next(input);
             Ok(Some(Object::from(read_string(input)?)))
         }
-        Some(b')') => Err(ReaderError::ExtraClose),
+        Some(b')') => {
+            debug!("A ); erroring.");
+            Err(ReaderError::ExtraClose)
+        }
         Some(b'(') => {
+            debug!("A (; reading a list.");
             next(input);
             Ok(Some(Object::from(read_list(input)?)))
         }
-        Some(_) => Ok(Some(read_sym_or_num(input))),
-        None => Ok(None),
+        Some(_) => {
+            debug!("Reading a symbol or number.");
+            Ok(Some(read_sym_or_num(input)))
+        }
+        None => {
+            debug!("End of input; returning `None`.");
+            Ok(None)
+        }
     }
 }
 

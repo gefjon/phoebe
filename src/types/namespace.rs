@@ -37,6 +37,24 @@ impl iter::FromIterator<(SymRef, reference::Reference)> for Namespace {
     }
 }
 
+impl iter::FromIterator<(SymRef, Object)> for Namespace {
+    fn from_iter<I>(iter: I) -> Namespace
+    where I: iter::IntoIterator<Item = (SymRef, Object)> {
+        use types::heap_object::HeapObject;
+        use allocate::Allocate;
+        
+        let table = iter.into_iter().map(|(r, o)| {
+            let h = HeapObject::allocate(HeapObject::around(o));
+            (r, unsafe { <*mut HeapObject>::from_unchecked(h) })
+        }).collect();
+        Namespace::Heap {
+            gc_marking: GcMark::default(),
+            name: None,
+            table,
+        }
+    }
+}
+
 impl Default for Namespace {
     fn default() -> Namespace {
         Namespace::Heap {
@@ -58,6 +76,35 @@ impl Namespace {
             }
         }
         self
+    }
+    pub fn get_sym_ref(&self, sym: SymRef) -> Option<reference::Reference> {
+        match *self {
+            Namespace::Heap { ref table, .. } => {
+                table.get(&sym).map(|&h| {
+                    reference::Reference::from(unsafe { &mut *h })
+                })
+            }
+            Namespace::Stack { ref table, .. } => {
+                table.get(&sym).cloned()
+            }
+        }
+    }
+    pub fn make_sym_ref(&mut self, sym: SymRef) -> reference::Reference {
+        use std::default::Default;
+        use allocate::Allocate;
+        
+        match *self {
+            Namespace::Heap { ref mut table, .. } => {
+                let p = *(table.entry(sym).or_insert_with(|| {
+                    let h = heap_object::HeapObject::allocate(
+                        heap_object::HeapObject::around(Object::default())
+                    );
+                    unsafe { h.into_unchecked() }
+                }));
+                unsafe { &mut *p }.into()
+            }
+            Namespace::Stack { .. } => panic!("Attempt to insert into a stack namespace"),
+        }
     }
 }
 

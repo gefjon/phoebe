@@ -11,10 +11,10 @@ lazy_static! {
     static ref FUNCTION_TYPE_NAME: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"function")
     };
-    static ref OPTIONAL: symbol::SymRef = {
+    pub static ref OPTIONAL: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"&optional")
     };
-    static ref REST: symbol::SymRef = {
+    pub static ref REST: symbol::SymRef = {
         ::symbol_lookup::make_symbol(b"&rest")
     };
 }
@@ -26,6 +26,47 @@ enum ArgType {
 }
 
 impl Function {
+    fn count_stack_frame_length(arglist: list::List) -> Result<usize, ConversionError> {
+        let mut ct = 0;
+        for arg in arglist {
+            let s = symbol::SymRef::try_from(arg)?;
+            if !(s == *REST || s == *OPTIONAL) {
+                ct += 1;
+            }
+        }
+        Ok(ct)
+    }
+    pub fn make_lambda(arglist: list::List, body: list::List) -> Result<Function, ConversionError> {
+        use std::default::Default;
+
+        Ok(Function {
+            gc_marking: GcMark::default(),
+            name: None,
+            arglist,
+            body: FunctionBody::Source(body),
+            stack_frame_length: Function::count_stack_frame_length(arglist)?,
+        })
+    }
+    pub fn make_special_form(name: symbol::SymRef, arglist: list::List, body: &'static Fn() -> Result<Object, EvaluatorError>) -> Result<Function, ConversionError> {
+        use std::default::Default;
+        
+        Ok(Function {
+            gc_marking: GcMark::default(),
+            name: Some(name),
+            arglist,
+            body: FunctionBody::SpecialForm(body),
+            stack_frame_length: Function::count_stack_frame_length(arglist)?,
+        })
+    }
+    pub fn make_builtin(name: symbol::SymRef, arglist: list::List, body: &'static Fn() -> Result<Object, EvaluatorError>) -> Result<Function, ConversionError> {
+        Ok(Function {
+            gc_marking: GcMark::default(),
+            name: Some(name),
+            arglist,
+            body: FunctionBody::Builtin(body),
+            stack_frame_length: Function::count_stack_frame_length(arglist)?,
+        })
+    }
     pub fn call(&self, args: list::List) -> Result<Object, EvaluatorError> {
         
         let args = if self.should_evaluate_args() {
@@ -97,7 +138,7 @@ impl Function {
                     }
                 }
                 ArgType::Rest => {
-                    if let Err(e) = push(Object::from(args)) {
+                    if let Err(e) = push(Object::from(args.reverse())) {
                         end_stack_frame(stack_frame_length)?;
                         return Err(e.into());
                     } else {
@@ -184,8 +225,8 @@ impl GarbageCollected for Function {
         }
         match self.body {
             FunctionBody::Source(b) => {
-                for obj in b {
-                    obj.gc_mark(mark);
+                if let Some(c) = <&mut cons::Cons>::maybe_from(b) {
+                    c.gc_mark(mark);
                 }
             }
             _ => (),

@@ -21,8 +21,8 @@ fn should_gc_run() -> bool {
 }
 
 fn update_gc_threshold() {
-    let old_thresh = GC_THRESHOLD.load(atomic::Ordering::SeqCst);
-    GC_THRESHOLD.fetch_add(old_thresh, atomic::Ordering::SeqCst);
+    let new_thresh = alloced_count() * 2;
+    GC_THRESHOLD.store(new_thresh, atomic::Ordering::SeqCst);
 }
 
 fn sweep(m: GcMark) {
@@ -30,8 +30,10 @@ fn sweep(m: GcMark) {
     let mut new_heap = Vec::with_capacity(heap.len());
     for obj in heap.drain(..) {
         if obj.should_dealloc(m) {
+            debug!("{} is unmarked; deallocating it.", obj);
             unsafe { deallocate(obj).unwrap() }
         } else {
+            debug!("{} is marked; keeping it.", obj);
             new_heap.push(obj);
         }
     }
@@ -47,6 +49,7 @@ fn mark_scope(m: GcMark) {
 }
 
 pub fn gc_pass() {
+    info!("Garbage collecting.");
     let mark = THE_GC_MARK.fetch_add(1, atomic::Ordering::SeqCst);
     gc_mark_stack(mark);
     mark_scope(mark);
@@ -60,11 +63,12 @@ pub fn gc_maybe_pass() {
     }
 }
 
-pub trait GarbageCollected: Deallocate {
+pub trait GarbageCollected: Deallocate + ::std::fmt::Display {
     fn my_marking(&self) -> &GcMark;
     fn my_marking_mut(&mut self) -> &mut GcMark;
     fn gc_mark_children(&mut self, mark: GcMark);
     fn gc_mark(&mut self, mark: GcMark) {
+        debug!("Marking {}", self);
         if *(self.my_marking()) != mark {
             *(self.my_marking_mut()) = mark;
             self.gc_mark_children(mark);

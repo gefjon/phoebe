@@ -57,6 +57,14 @@ impl List {
         let c = Cons::allocate(Cons::new(obj, self.into()));
         unsafe { c.into_unchecked() }
     }
+    pub fn reverse(self) -> List {
+        let mut new_list = List::Nil;
+        for el in self {
+            new_list = new_list.push(el);
+        }
+        debug!("reversed {} into {}", self, new_list);
+        new_list
+    }
     pub unsafe fn nreverse(mut self) -> List {
         let mut prev = Object::nil();
         loop {

@@ -16,6 +16,15 @@ pub struct HeapObject {
     pub val: Object,
 }
 
+impl HeapObject {
+    pub fn around(val: Object) -> HeapObject {
+        HeapObject {
+            gc_marking: GcMark::default(),
+            val,
+        }
+    }
+}
+
 impl fmt::Display for HeapObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.val)

@@ -27,6 +27,12 @@ thread_local! {
     };
 }
 
+pub fn add_to_global(name: SymRef, obj: Object) {
+    SCOPE.with(|s| {
+        *(s.borrow_mut()[0].make_sym_ref(name)) = obj;
+    });
+}
+
 /// BUG: The `SCOPE` is thread local, but garbage collection is done
 /// globally. This means that the garbage collector cannot mark other
 /// threads' scopes and may deallocate them prematurely.
@@ -39,6 +45,11 @@ pub fn gc_mark_scope(m: gc::GcMark) {
     });
 }
 
+pub fn add_heap_scope(n: &[(SymRef, Object)]) {
+    let nmspc = namespace::Namespace::allocate(n.iter().cloned().collect());
+    SCOPE.with(|s| s.borrow_mut().push(unsafe { nmspc.into_unchecked() }));
+}
+
 pub fn add_namespace_to_scope(n: &[(SymRef, reference::Reference)]) {
     let nmspc = namespace::Namespace::allocate(
         n.iter().cloned().collect()
@@ -48,14 +59,14 @@ pub fn add_namespace_to_scope(n: &[(SymRef, reference::Reference)]) {
     });
 }
 
-/// This call closes the namespace created by
-/// `add_namespace_to_scope`. It is intended to be called only for
-/// local bindings such as `let` and function calls, and should only
-/// ever be called after a corresponding `add_namespace_to_scope` when
-/// it is known that the correct namespace is the top of the
-/// scope. Scopes should also be destroyed *before* their stack frames
-/// are closed using `stack::end_stack_frame` - otherwise their values
-/// will be references to garbage memory.
+/// This call closes the namespace created by `add_namespace_to_scope`
+/// or `add_heap_scope`. It is intended to be called only for local
+/// bindings such as `let` and function calls, and should only ever be
+/// called after a corresponding `add_namespace_to_scope` when it is
+/// known that the correct namespace is the top of the scope. Scopes
+/// should also be destroyed *before* their stack frames are closed
+/// using `stack::end_stack_frame` - otherwise their values will be
+/// references to garbage memory.
 pub fn close_namespace() {
     SCOPE.with(|s| {
         let mut scope = s.borrow_mut();
@@ -84,8 +95,21 @@ pub fn make_symbol(s: &[u8]) -> SymRef {
 /// reference to the value of the symbol currently on the top of the
 /// `SCOPE`, meaning that more recent local bindings are
 /// preferred. This is the behavior you expect.
-pub fn lookup_symbol(_s: SymRef) -> reference::Reference {
-    unimplemented!()
+pub fn lookup_symbol(sym: SymRef) -> reference::Reference {
+    SCOPE.with(|st| {
+        let mut scope = st.borrow_mut();
+        {
+            use std::iter::DoubleEndedIterator;
+            
+            let mut iter = scope.iter();
+            while let Some(n) = iter.next_back() {
+                if let Some(r) = n.get_sym_ref(sym) {
+                    return r;
+                }
+            }
+        }
+        scope[0].make_sym_ref(sym)
+    })
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use std::{convert, fmt};
+use std::{convert, fmt, default};
 use gc::{GcMark, GarbageCollected};
 
 mod pointer_tagging;
@@ -96,6 +96,12 @@ impl Object {
     }
 }
 
+impl default::Default for Object {
+    fn default() -> Object {
+        Object::uninitialized()
+    }
+}
+
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", ExpandedObject::from(*self))
@@ -165,6 +171,12 @@ impl convert::From<Object> for ExpandedObject {
         } else {
             unreachable!()
         }
+    }
+}
+
+impl convert::From<Object> for bool {
+    fn from(o: Object) -> bool {
+        !o.nilp()
     }
 }
 
