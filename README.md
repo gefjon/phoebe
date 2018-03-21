@@ -26,7 +26,7 @@ any time.
     * [ ] `setf`
     * [ ] `nref`
     * [ ] `in-namespace`
-    ...and many more!
+    * [ ] ...and many more!
   + Built-in functions
     * [x] `list`
     * [ ] `cons`
@@ -43,7 +43,7 @@ any time.
     * [ ] `ceil`
     * [ ] `trunc`
     * [ ] `round`
-    ...and many more!
+    * [ ] ...and many more!
 - [ ] Write tests for built-in functions and special forms
   + Special forms:
     * [ ] `cond`
