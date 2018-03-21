@@ -2,6 +2,10 @@
 name = "phoebe"
 version = "0.1.0"
 authors = ["Arthur Goldman <arthur@goldman-tribe.org>"]
+license = "MIT"
+
+[badges]
+travis-ci = { repository = "gefjon/phoebe" }
 
 [dependencies]
 failure = "0.1"
