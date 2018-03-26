@@ -1,5 +1,6 @@
 use types::{list, ExpandedObject, Object};
-use symbol_lookup::lookup_symbol;
+use types::reference::Reference;
+use symbol_lookup::{lookup_symbol, UnboundSymbolError};
 use gc::gc_maybe_pass;
 use stack::{StackOverflowError, StackUnderflowError};
 use std::convert;
@@ -17,6 +18,10 @@ pub enum EvaluatorError {
     TypeError(ConversionError),
     #[fail(display = "Found an improperly-terminated list where a proper one was expected")]
     ImproperList,
+    #[fail(display = "Attempt to create a reference has failed")]
+    CannotBeReferenced,
+    #[fail(display = "{}", _0)]
+    UnboundSymbol(UnboundSymbolError),
 }
 
 unsafe impl Sync for EvaluatorError {}
@@ -46,16 +51,22 @@ impl convert::From<StackUnderflowError> for EvaluatorError {
     }
 }
 
+impl convert::From<UnboundSymbolError> for EvaluatorError {
+    fn from(e: UnboundSymbolError) -> EvaluatorError {
+        EvaluatorError::UnboundSymbol(e)
+    }
+}
+
 pub trait Evaluate {
+    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
+        Err(EvaluatorError::CannotBeReferenced)
+    }
     fn evaluate(&self) -> Result<Object, EvaluatorError>;
 }
 
 impl Evaluate for Object {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
-        use stack::{pop, push};
         info!("Evaluating {}.", self);
-
-        push(*self)?;
 
         let res = ExpandedObject::from(*self).evaluate();
         if !res.is_err() {
@@ -68,9 +79,14 @@ impl Evaluate for Object {
             gc_maybe_pass();
         }
 
-        let _popped = pop()?;
-        debug_assert!(_popped == *self);
-
+        res
+    }
+    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
+        let res = ExpandedObject::from(*self).eval_to_reference();
+        if !res.is_err() {
+            debug!("Not an error; might garbage-collect.");
+            gc_maybe_pass();
+        }
         res
     }
 }
@@ -81,11 +97,23 @@ impl Evaluate for ExpandedObject {
             ExpandedObject::Float(n) => Object::from(n),
             ExpandedObject::Immediate(i) => Object::from(i),
             ExpandedObject::Reference(r) => *r,
-            ExpandedObject::Symbol(s) => Object::from(lookup_symbol(s)),
+            ExpandedObject::Symbol(s) => *(lookup_symbol(s)?),
             ExpandedObject::Function(f) => Object::from(f),
             ExpandedObject::Cons(c) => unsafe { &*c }.evaluate()?,
             ExpandedObject::Namespace(n) => Object::from(n),
             ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).evaluate()?,
         })
+    }
+    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
+        match *self {
+            ExpandedObject::Float(_)
+            | ExpandedObject::Immediate(_)
+            | ExpandedObject::Function(_)
+            | ExpandedObject::Namespace(_) => Err(EvaluatorError::CannotBeReferenced),
+            ExpandedObject::Reference(r) => Ok(r),
+            ExpandedObject::Symbol(s) => Ok(lookup_symbol(s)?),
+            ExpandedObject::Cons(c) => unsafe { &*c }.eval_to_reference(),
+            ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).eval_to_reference(),
+        }
     }
 }

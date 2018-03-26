@@ -50,6 +50,15 @@ impl Evaluate for Cons {
         let func: &Function = f.evaluate()?.try_into()?;
         func.call(l)
     }
+    fn eval_to_reference(&self) -> Result<reference::Reference, EvaluatorError> {
+        use types::function::Function;
+        use types::list::List;
+
+        let mut l: List = Object::from(self as *const Cons as *mut Cons).try_into()?;
+        let f = l.next().unwrap();
+        let func: &Function = f.evaluate()?.try_into()?;
+        func.call_to_reference(l)
+    }
 }
 
 impl fmt::Display for Cons {

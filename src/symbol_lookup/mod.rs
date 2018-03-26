@@ -1,12 +1,11 @@
-use types::{namespace, reference, Object};
+use types::{reference, Object};
 use types::symbol::{SymRef, Symbol};
+use types::namespace::{Namespace, NamespaceRef};
 use allocate::Allocate;
 use types::conversions::*;
 use std::{cell, sync};
 use std::collections::HashMap;
 use gc;
-
-type Scope = Vec<&'static mut namespace::Namespace>;
 
 static GLOBAL_NAMESPACE_NAME: &[u8] = b"global-namespace";
 
@@ -14,63 +13,84 @@ lazy_static! {
     pub static ref SYMBOLS_HEAP: sync::Mutex<HashMap<Vec<u8>, SymRef>> = {
         sync::Mutex::new(HashMap::new())
     };
-}
-
-thread_local! {
-    static SCOPE: cell::RefCell<Scope> = {
-        let global_namespace = namespace::Namespace::allocate(
-            namespace::Namespace::default().with_name(
+    static ref DEFAULT_GLOBAL_ENV: NamespaceRef = {
+        let n = Namespace::allocate(
+            Namespace::default().with_name(
                 Object::from(make_symbol(GLOBAL_NAMESPACE_NAME))
             )
         );
-        cell::RefCell::new(vec![unsafe { global_namespace.into_unchecked() }])
+        unsafe { n.into_unchecked() }
     };
 }
 
-pub fn add_to_global(name: SymRef, obj: Object) {
-    SCOPE.with(|s| {
-        *(s.borrow_mut()[0].make_sym_ref(name)) = obj;
-    });
+thread_local! {
+    static ENV_STACK: cell::RefCell<Vec<NamespaceRef>> = {
+        cell::RefCell::new(vec![*DEFAULT_GLOBAL_ENV])
+    };
 }
 
-/// BUG: The `SCOPE` is thread local, but garbage collection is done
-/// globally. This means that the garbage collector cannot mark other
-/// threads' scopes and may deallocate them prematurely.
+#[derive(Fail, Debug)]
+#[fail(display = "The symbol {} is unbound.", sym)]
+pub struct UnboundSymbolError {
+    sym: SymRef,
+}
+
+pub fn default_global_env() -> NamespaceRef {
+    *DEFAULT_GLOBAL_ENV
+}
+
+pub fn current_env() -> NamespaceRef {
+    ENV_STACK.with(|s| {
+        let stack: &Vec<NamespaceRef> = &s.borrow();
+        stack[stack.len() - 1]
+    })
+}
+
+pub fn global_env() -> NamespaceRef {
+    ENV_STACK.with(|s| {
+        let stack: &Vec<NamespaceRef> = &s.borrow();
+        stack[0]
+    })
+}
+
+pub fn add_to_global(sym: SymRef, obj: Object) {
+    *(make_from_default_global_namespace(sym)) = obj;
+}
+
+/// BUG: The `ENV_STACK` is thread local, but garbage collection is
+/// done globally. This means that the garbage collector cannot mark
+/// other threads' scopes and may deallocate them prematurely. This is
+/// currently a non-issue because Phoebe is single-threaded, but in
+/// the future could cause problems.
 pub fn gc_mark_scope(m: gc::GcMark) {
-    use gc::GarbageCollected;
-    SCOPE.with(|s| {
+    ENV_STACK.with(|s| {
         for nmspc in s.borrow_mut().iter_mut() {
             nmspc.gc_mark(m);
         }
     });
 }
 
-pub fn add_heap_scope(n: &[(SymRef, Object)]) {
-    let nmspc = namespace::Namespace::allocate(n.iter().cloned().collect());
-    SCOPE.with(|s| s.borrow_mut().push(unsafe { nmspc.into_unchecked() }));
-}
-
-pub fn add_namespace_to_scope(n: &[(SymRef, reference::Reference)]) {
-    let nmspc = namespace::Namespace::allocate(n.iter().cloned().collect());
-    SCOPE.with(|s| {
-        s.borrow_mut().push(unsafe { nmspc.into_unchecked() });
-    });
-}
-
-/// This call closes the namespace created by `add_namespace_to_scope`
-/// or `add_heap_scope`. It is intended to be called only for local
-/// bindings such as `let` and function calls, and should only ever be
-/// called after a corresponding `add_namespace_to_scope` when it is
-/// known that the correct namespace is the top of the scope. Scopes
-/// should also be destroyed *before* their stack frames are closed
-/// using `stack::end_stack_frame` - otherwise their values will be
-/// references to garbage memory.
-pub fn close_namespace() {
-    SCOPE.with(|s| {
-        let mut scope = s.borrow_mut();
-        scope.pop().unwrap();
-        debug_assert!(!scope.is_empty());
-    });
+pub fn with_env<F, T>(env: NamespaceRef, fun: F) -> T
+where
+    F: FnOnce() -> T,
+    T: Sized,
+{
+    {
+        ENV_STACK.with(|s| {
+            s.borrow_mut().push(env);
+        })
+    }
+    let res = fun();
+    {
+        ENV_STACK.with(|s| {
+            let mut stack = s.borrow_mut();
+            let _pop = stack.pop();
+            debug_assert!(_pop.is_some());
+            debug_assert!(_pop.unwrap() == env);
+            debug_assert!(!stack.is_empty());
+        })
+    }
+    res
 }
 
 /// Create a symbol, by returning a pointer to an existing one with
@@ -93,20 +113,32 @@ pub fn make_symbol(s: &[u8]) -> SymRef {
 /// reference to the value of the symbol currently on the top of the
 /// `SCOPE`, meaning that more recent local bindings are
 /// preferred. This is the behavior you expect.
-pub fn lookup_symbol(sym: SymRef) -> reference::Reference {
-    SCOPE.with(|st| {
-        let mut scope = st.borrow_mut();
-        {
-            use std::iter::DoubleEndedIterator;
+pub fn lookup_symbol(sym: SymRef) -> Result<reference::Reference, UnboundSymbolError> {
+    current_env()
+        .get_sym_ref(sym)
+        .ok_or(UnboundSymbolError { sym })
+}
 
-            let mut iter = scope.iter();
-            while let Some(n) = iter.next_back() {
-                if let Some(r) = n.get_sym_ref(sym) {
-                    return r;
-                }
-            }
-        }
-        scope[0].make_sym_ref(sym)
+pub fn get_from_global_namespace(sym: SymRef) -> Option<reference::Reference> {
+    global_env().get_sym_ref(sym)
+}
+
+pub fn make_from_global_namespace(sym: SymRef) -> reference::Reference {
+    global_env().make_sym_ref(sym)
+}
+
+pub fn make_from_default_global_namespace(sym: SymRef) -> reference::Reference {
+    default_global_env().make_sym_ref(sym)
+}
+
+/// The correct scope for a newly defined function is one step behind
+/// the current scope - the current scope is either `lambda` or
+/// `defun`'s scope.
+pub fn scope_for_a_new_function() -> NamespaceRef {
+    ENV_STACK.with(|s| {
+        let scope = s.borrow();
+        debug_assert!(scope.len() > 1);
+        scope[scope.len() - 2]
     })
 }
 

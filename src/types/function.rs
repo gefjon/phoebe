@@ -1,10 +1,11 @@
-use types::{cons, list, symbol, Object};
+use types::{cons, list, namespace, reference, symbol, Object};
+use types::namespace::NamespaceRef;
 use types::conversions::*;
 use gc::{GarbageCollected, GcMark};
-use evaluator;
+use symbol_lookup;
 use types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
-use evaluator::{Evaluate, EvaluatorError};
+use evaluator::{self, Evaluate, EvaluatorError};
 use stack::StackUnderflowError;
 
 lazy_static! {
@@ -36,36 +37,40 @@ impl Function {
         }
         Ok(ct)
     }
-    pub fn make_lambda(arglist: list::List, body: list::List) -> Result<Function, ConversionError> {
-        use std::default::Default;
-
+    pub fn make_lambda(
+        arglist: list::List,
+        body: list::List,
+        env: NamespaceRef,
+    ) -> Result<Function, ConversionError> {
         Ok(Function {
             gc_marking: GcMark::default(),
             name: None,
             arglist,
             body: FunctionBody::Source(body),
             stack_frame_length: Function::count_stack_frame_length(arglist)?,
+            env,
         })
     }
     pub fn make_special_form(
         name: symbol::SymRef,
         arglist: list::List,
         body: &'static Fn() -> Result<Object, EvaluatorError>,
+        env: NamespaceRef,
     ) -> Result<Function, ConversionError> {
-        use std::default::Default;
-
         Ok(Function {
             gc_marking: GcMark::default(),
             name: Some(name),
             arglist,
             body: FunctionBody::SpecialForm(body),
             stack_frame_length: Function::count_stack_frame_length(arglist)?,
+            env,
         })
     }
     pub fn make_builtin(
         name: symbol::SymRef,
         arglist: list::List,
         body: &'static Fn() -> Result<Object, EvaluatorError>,
+        env: NamespaceRef,
     ) -> Result<Function, ConversionError> {
         Ok(Function {
             gc_marking: GcMark::default(),
@@ -73,8 +78,37 @@ impl Function {
             arglist,
             body: FunctionBody::Builtin(body),
             stack_frame_length: Function::count_stack_frame_length(arglist)?,
+            env,
         })
     }
+    pub fn with_name(self, name: symbol::SymRef) -> Function {
+        Function {
+            name: Some(name),
+            ..self
+        }
+    }
+    pub fn call_to_reference(
+        &self,
+        args: list::List,
+    ) -> Result<reference::Reference, EvaluatorError> {
+        let args = if self.should_evaluate_args() {
+            let mut evaled_args = list::List::nil();
+            for a in args {
+                evaled_args = evaled_args.push(a.evaluate()?);
+            }
+            evaled_args
+        } else {
+            args
+        };
+
+        let env = self.build_env(args)?;
+        let res = symbol_lookup::with_env(env, || self.body.evaluate());
+        let second_res = self.end_stack_frame();
+
+        let obj = second_res.map_err(EvaluatorError::from).and(res)?;
+        Ok(obj.try_into()?)
+    }
+
     pub fn call(&self, args: list::List) -> Result<Object, EvaluatorError> {
         let args = if self.should_evaluate_args() {
             let mut evaled_args = list::List::nil();
@@ -85,9 +119,19 @@ impl Function {
         } else {
             args
         };
-        self.put_args_on_stack(args)?;
-        let res = self.body.evaluate();
+
+        let env = self.build_env(args)?;
+        let res = symbol_lookup::with_env(env, || {
+            self.body.evaluate().map(|o| {
+                if let Some(r) = reference::Reference::maybe_from(o) {
+                    *r
+                } else {
+                    o
+                }
+            })
+        });
         let second_res = self.end_stack_frame();
+
         second_res.map_err(EvaluatorError::from).and(res)
     }
     fn should_evaluate_args(&self) -> bool {
@@ -97,9 +141,8 @@ impl Function {
             true
         }
     }
-    fn put_args_on_stack(&self, mut args: list::List) -> Result<(), EvaluatorError> {
+    fn build_env(&self, mut args: list::List) -> Result<NamespaceRef, EvaluatorError> {
         use stack::{end_stack_frame, push, ref_top};
-        use symbol_lookup::add_namespace_to_scope;
 
         let mut arg_type = ArgType::Mandatory;
         let mut n_args: usize = 0;
@@ -134,7 +177,7 @@ impl Function {
                     let (o, narg) = if let Some(o) = args.next() {
                         (o, 1)
                     } else {
-                        (Object::nil(), 0)
+                        (Object::uninitialized(), 0)
                     };
                     if let Err(e) = push(o) {
                         end_stack_frame(stack_frame_length)?;
@@ -158,14 +201,14 @@ impl Function {
 
             symbol_lookup_buf.push((arg_sym, ref_top()));
         }
-        add_namespace_to_scope(&symbol_lookup_buf);
-        Ok(())
+        Ok(namespace::Namespace::create_stack_env(
+            &symbol_lookup_buf,
+            self.env,
+        ))
     }
     fn end_stack_frame(&self) -> Result<(), StackUnderflowError> {
-        use symbol_lookup::close_namespace;
         use stack::end_stack_frame;
 
-        close_namespace();
         end_stack_frame(self.stack_frame_length)
     }
 }
@@ -176,6 +219,7 @@ pub struct Function {
     arglist: list::List,
     body: FunctionBody,
     stack_frame_length: usize,
+    env: NamespaceRef,
 }
 
 enum FunctionBody {

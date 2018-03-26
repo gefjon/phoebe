@@ -1,4 +1,3 @@
-#![feature(box_leak)]
 #![feature(specialization)]
 #![feature(allocator_api)]
 
@@ -21,12 +20,4 @@ pub mod printer;
 pub mod repl;
 mod builtins;
 
-pub use repl::read_eval_print_loop;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub use repl::repl;

@@ -21,9 +21,9 @@ any time.
     * [ ] `if`
     * [ ] `when`
     * [ ] `unless`
-    * [ ] `defun`
-    * [ ] `defvar`
-    * [ ] `setf`
+    * [x] `defun`
+    * [x] `defvar`
+    * [x] `setf`
     * [ ] `nref`
     * [ ] `in-namespace`
     * [ ] ...and many more!
@@ -50,11 +50,14 @@ any time.
     * [ ] ...and many more!
 - [ ] Write tests for built-in functions and special forms
   + Special forms:
+    * [x] `defun` - `tests/lexical_scopes_and_closures::define_and_call_a_closure`
+    * [ ] `defvar`
+    * [ ] `setf`
     * [ ] `cond`
     * [ ] `let`
     * [ ] `lambda`
   + Built-in functions:
-    * [x] `list`
+    * [x] `list` - `src/repl::test::make_a_list` does this, but mostly by coincidence.
 - [ ] Strings
 - [ ] Arrays
 - [ ] I/O?

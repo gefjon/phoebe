@@ -65,9 +65,20 @@ impl Object {
     pub fn uninitialized() -> Self {
         Object::from(immediate::SpecialMarker::Uninitialized)
     }
-    /// True iff self is exactly Object::nil()
+    /// True iff self is exactly `Object::nil()`
     pub fn nilp(self) -> bool {
         self == Object::nil()
+    }
+
+    /// True iff self is exactly `Object::uninitialized()`
+    pub fn undefinedp(self) -> bool {
+        self == Object::uninitialized()
+    }
+
+    /// The logical inverse of `undefinedp` - true for any object
+    /// other than `Object::uninitialized()`.
+    pub fn definedp(self) -> bool {
+        !self.undefinedp()
     }
 
     pub fn eql(self, other: Object) -> bool {
@@ -172,7 +183,7 @@ impl convert::From<Object> for ExpandedObject {
 
 impl convert::From<Object> for bool {
     fn from(o: Object) -> bool {
-        !o.nilp()
+        !(o.nilp() || o.undefinedp())
     }
 }
 

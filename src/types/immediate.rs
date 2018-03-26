@@ -91,6 +91,8 @@ impl FromUnchecked<Object> for Immediate {
             Immediate::Integer(i32::from_unchecked(obj))
         } else if bool::is_type(obj) {
             Immediate::Bool(bool::from_unchecked(obj))
+        } else if SpecialMarker::is_type(obj) {
+            Immediate::SpecialMarker(SpecialMarker::from_unchecked(obj))
         } else {
             panic!("Immediate::from_unchecked on a non-Immediate value")
         }

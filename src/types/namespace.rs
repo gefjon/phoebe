@@ -1,28 +1,163 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use std::collections::HashMap;
-use super::{heap_object, reference, Object};
+use super::{heap_object, reference, symbol, Object};
 use types::symbol::SymRef;
 use super::conversions::*;
 use gc::{GarbageCollected, GcMark};
-use std::{convert, fmt, iter};
+use std::{convert, fmt, iter, ops};
 use std::default::Default;
+use symbol_lookup;
 
 lazy_static! {
     static ref NAMESPACE_TYPE_NAME: SymRef = {
-        ::symbol_lookup::make_symbol(b"namespace")
+        symbol_lookup::make_symbol(b"namespace")
     };
 }
 
-#[derive(Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
+pub struct NamespaceRef(*mut Namespace);
+
+impl NamespaceRef {
+    pub fn gc_mark(self, m: GcMark) {
+        unsafe { &mut *(self.0) }.gc_mark(m);
+    }
+
+    pub fn clone_if_needed(self) -> NamespaceRef {
+        use allocate::Allocate;
+
+        let obj = Namespace::allocate(match *self {
+            Namespace::Heap {
+                parent: Some(p),
+                ref table,
+                name,
+                ..
+            } => Namespace::Heap {
+                parent: Some(p.clone_if_needed()),
+                table: table.clone(),
+                name,
+                gc_marking: GcMark::default(),
+            },
+            Namespace::Heap { parent: None, .. } => {
+                return self;
+            }
+            Namespace::Stack {
+                ref table, parent, ..
+            } => {
+                let table = table
+                    .iter()
+                    .map(|(&s, &r)| {
+                        use types::heap_object::HeapObject;
+                        use allocate::Allocate;
+
+                        let h = HeapObject::allocate(HeapObject::around(*r));
+                        (s, unsafe { <*mut HeapObject>::from_unchecked(h) })
+                    })
+                    .collect();
+                let parent = parent.and_then(|p| Some(p.clone_if_needed()));
+                Namespace::Heap {
+                    gc_marking: GcMark::default(),
+                    name: None,
+                    table,
+                    parent,
+                }
+            }
+        });
+        unsafe { obj.into_unchecked() }
+    }
+}
+
+impl fmt::Display for NamespaceRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", **self)
+    }
+}
+
+impl fmt::Debug for NamespaceRef {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[nref 0x{:p} -> {:?}]", self.0, **self)
+    }
+}
+
+impl AsRef<Namespace> for NamespaceRef {
+    fn as_ref(&self) -> &Namespace {
+        unsafe { &*(self.0) }
+    }
+}
+
+impl AsMut<Namespace> for NamespaceRef {
+    fn as_mut(&mut self) -> &mut Namespace {
+        unsafe { &mut *(self.0) }
+    }
+}
+
+impl ops::Deref for NamespaceRef {
+    type Target = Namespace;
+    fn deref(&self) -> &Namespace {
+        self.as_ref()
+    }
+}
+
+impl ops::DerefMut for NamespaceRef {
+    fn deref_mut(&mut self) -> &mut Namespace {
+        self.as_mut()
+    }
+}
+
+impl convert::From<NamespaceRef> for *mut Namespace {
+    fn from(n: NamespaceRef) -> *mut Namespace {
+        n.0
+    }
+}
+
+impl<'any> convert::From<&'any mut Namespace> for NamespaceRef {
+    fn from(n: &mut Namespace) -> NamespaceRef {
+        NamespaceRef(n as *mut Namespace)
+    }
+}
+
+impl convert::From<*mut Namespace> for NamespaceRef {
+    fn from(n: *mut Namespace) -> NamespaceRef {
+        NamespaceRef(n)
+    }
+}
+
+impl convert::From<NamespaceRef> for Object {
+    fn from(n: NamespaceRef) -> Object {
+        Object::from(<*mut Namespace>::from(n))
+    }
+}
+
+impl FromUnchecked<Object> for NamespaceRef {
+    unsafe fn from_unchecked(obj: Object) -> NamespaceRef {
+        NamespaceRef(<*mut Namespace>::from_unchecked(obj))
+    }
+}
+
+impl FromObject for NamespaceRef {
+    type Tag = <*mut Namespace as FromObject>::Tag;
+    fn associated_tag() -> Self::Tag {
+        <*mut Namespace as FromObject>::associated_tag()
+    }
+    fn type_name() -> symbol::SymRef {
+        <*mut Namespace as FromObject>::type_name()
+    }
+}
+
+unsafe impl Send for NamespaceRef {}
+unsafe impl Sync for NamespaceRef {}
+
+#[derive(Debug, Clone)]
 pub enum Namespace {
     Heap {
         gc_marking: GcMark,
         name: Option<Object>,
         table: HashMap<SymRef, *mut heap_object::HeapObject>,
+        parent: Option<NamespaceRef>,
     },
     Stack {
         gc_marking: GcMark,
         table: HashMap<SymRef, reference::Reference>,
+        parent: Option<NamespaceRef>,
     },
 }
 
@@ -35,6 +170,7 @@ impl iter::FromIterator<(SymRef, reference::Reference)> for Namespace {
         Namespace::Stack {
             gc_marking: GcMark::default(),
             table,
+            parent: None,
         }
     }
 }
@@ -57,6 +193,7 @@ impl iter::FromIterator<(SymRef, Object)> for Namespace {
             gc_marking: GcMark::default(),
             name: None,
             table,
+            parent: None,
         }
     }
 }
@@ -67,11 +204,66 @@ impl Default for Namespace {
             gc_marking: GcMark::default(),
             name: None,
             table: HashMap::new(),
+            parent: None,
         }
     }
 }
 
 impl Namespace {
+    /// This function builds and allocates an env to be used by `let`,
+    /// though it *does not* push it to the `ENV_STACK`.
+    pub fn create_let_env(pairs: &[(SymRef, Object)]) -> NamespaceRef {
+        use allocate::Allocate;
+
+        let nmspc: Namespace = pairs.iter().cloned().collect();
+
+        let nmspc = Namespace::allocate(nmspc.with_parent(symbol_lookup::current_env()));
+        unsafe { nmspc.into_unchecked() }
+    }
+
+    /// This function builds and allocates a function's running
+    /// environment, though it *does not* push it to the `ENV_STACK`.
+    pub fn create_stack_env(
+        pairs: &[(SymRef, reference::Reference)],
+        parent: NamespaceRef,
+    ) -> NamespaceRef {
+        use allocate::Allocate;
+
+        let nmspc: Namespace = pairs.iter().cloned().collect();
+
+        let nmspc = Namespace::allocate(nmspc.with_parent(parent));
+        unsafe { nmspc.into_unchecked() }
+    }
+
+    pub fn parent(&self) -> Option<NamespaceRef> {
+        match *self {
+            Namespace::Stack { parent, .. } | Namespace::Heap { parent, .. } => parent,
+        }
+    }
+    pub fn with_parent(self, parent: NamespaceRef) -> Namespace {
+        match self {
+            Namespace::Stack { table, .. } => Namespace::Stack {
+                gc_marking: GcMark::default(),
+                table,
+                parent: Some(parent),
+            },
+            Namespace::Heap { name, table, .. } => Namespace::Heap {
+                gc_marking: GcMark::default(),
+                name,
+                table,
+                parent: Some(parent),
+            },
+        }
+    }
+    pub fn needs_clone(&self) -> bool {
+        if let Namespace::Stack { .. } = *self {
+            true
+        } else if let Some(n) = self.parent() {
+            n.needs_clone()
+        } else {
+            false
+        }
+    }
     pub fn with_name(mut self, n: Object) -> Namespace {
         match self {
             Namespace::Heap { ref mut name, .. } => {
@@ -87,10 +279,18 @@ impl Namespace {
         match *self {
             Namespace::Heap { ref table, .. } => table
                 .get(&sym)
-                .map(|&h| reference::Reference::from(unsafe { &mut *h })),
-            Namespace::Stack { ref table, .. } => table.get(&sym).cloned(),
+                .map(|&h| reference::Reference::from(unsafe { &mut *h }))
+                .or_else(|| self.parent().and_then(|n| n.get_sym_ref(sym))),
+            Namespace::Stack { ref table, .. } => table
+                .get(&sym)
+                .cloned()
+                .or_else(|| self.parent().and_then(|n| n.get_sym_ref(sym))),
         }
     }
+
+    /// This function may have unwanted behavior: it *will not* search
+    /// parent envs. It is called by
+    /// `symbol_lookup::make_from_[default_]global_namespace`.
     pub fn make_sym_ref(&mut self, sym: SymRef) -> reference::Reference {
         use std::default::Default;
         use allocate::Allocate;

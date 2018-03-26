@@ -17,7 +17,8 @@ macro_rules! special_form {
                 Function::make_special_form(
                     name,
                     arglist,
-                    Box::leak(body)
+                    Box::leak(body),
+                    $crate::symbol_lookup::default_global_env()
                 ).unwrap()
             );
             $crate::symbol_lookup::add_to_global(name, func);
@@ -44,7 +45,8 @@ macro_rules! builtin_func {
                 Function::make_builtin(
                     name,
                     arglist,
-                    Box::leak(body)
+                    Box::leak(body),
+                    $crate::symbol_lookup::default_global_env()
                 ).unwrap()
             );
             $crate::symbol_lookup::add_to_global(name, func);
@@ -73,20 +75,20 @@ macro_rules! make_arg_syms {
 
 macro_rules! get_args {
     ($($arg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg);)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
     };
     ($($arg:ident)* &optional $($oarg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg);)*;
-        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg);)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
+        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg)?;)*;
     };
     ($($arg:ident)* &rest $($rarg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg);)*;
-        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg);)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
+        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg)?;)*;
     };
     ($($arg:ident)* &optional $($oarg:ident)* &rest $($rarg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg);)*;
-        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg);)*;
-        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg);)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
+        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg)?;)*;
+        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg)?;)*;
     };
 }
 

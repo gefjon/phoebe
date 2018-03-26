@@ -1,6 +1,7 @@
 use types::Object;
 use types::list::List;
 use types::cons::Cons;
+use types::namespace::Namespace;
 use types::conversions::*;
 use types::symbol::SymRef;
 use evaluator::{Evaluate, EvaluatorError};
@@ -39,32 +40,73 @@ pub fn make_builtins() {
                 ));
             }
             let body = List::try_from(*body)?;
-            symbol_lookup::add_heap_scope(&scope);
-            let mut res = Ok(Object::nil());
-            for body_clause in body {
-                res = body_clause.evaluate();
-                if res.is_err() {
-                    symbol_lookup::close_namespace();
-                    return res;
+            let env = Namespace::create_let_env(&scope);
+            symbol_lookup::with_env(env, || {
+                let mut res = Ok(Object::nil());
+                for body_clause in body {
+                    res = body_clause.evaluate();
+                    if res.is_err() {
+                        return res;
+                    }
                 }
-            }
-            symbol_lookup::close_namespace();
-            res
+                res
+            })
         };
         "lambda" (arglist &rest body) -> {
             Ok(Function::allocate(
                 Function::make_lambda(
                     (*arglist).try_into()?,
                     (*body).try_into()?,
+                    symbol_lookup::scope_for_a_new_function()
                 )?
             ))
         };
-
+        "defvar" (name &optional value) -> {
+            let sym = SymRef::try_from(*name)?;
+            let mut place = symbol_lookup::make_from_global_namespace(sym);
+            if place.definedp() {
+                Ok(Object::from(place))
+            } else {
+                let val = if (*value).definedp() {
+                    value.evaluate()?
+                } else {
+                    Object::uninitialized()
+                };
+                *place = val;
+                Ok(Object::from(place))
+            }
+        };
+        "boundp" (symbol) -> {
+            let sym = SymRef::try_from(*symbol)?;
+            Ok(symbol_lookup::get_from_global_namespace(sym).is_some().into())
+        };
+        "defun" (name arglist &rest body) -> {
+            let name = (*name).try_into()?;
+            let func = Function::allocate(
+                Function::make_lambda(
+                    (*arglist).try_into()?,
+                    (*body).try_into()?,
+                    symbol_lookup::scope_for_a_new_function()
+                )?.with_name(name)
+            );
+            *(symbol_lookup::make_from_global_namespace(name)) = func;
+            Ok(func)
+        };
+        "setf" (place value) -> {
+            let mut place = Evaluate::eval_to_reference(&*place)?;
+            let value = Evaluate::evaluate(&*value)?;
+            *place = value;
+            Ok(value)
+        };
     };
 
     builtin_functions! {
         "list" (&rest elements) -> {
             Ok(*elements)
+        };
+        "debug" (obj) -> {
+            println!("{:?}", *obj);
+            Ok(*obj)
         };
     };
     info!("Finished making builtin functions.");
