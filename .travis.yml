@@ -2,7 +2,8 @@ language: rust
 rust:
   - nightly
 cache: cargo
-before_script: (cargo install rustfmt || true)
+before_script:
+  - rustup component add rustfmt-preview
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
