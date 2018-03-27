@@ -1,5 +1,5 @@
-use types::{pointer_tagging, reference, symbol, Object};
 use types::pointer_tagging::PointerTag;
+use types::{pointer_tagging, reference, symbol, Object};
 
 #[derive(Fail, Debug)]
 #[fail(display = "Expected a value of type {}.", wanted_type)]

@@ -1,9 +1,9 @@
-use std::io::prelude::*;
-use std::{convert, io};
-use reader::read;
+use builtins::make_builtins;
 use evaluator::Evaluate;
 use printer::print;
-use builtins::make_builtins;
+use reader::read;
+use std::io::prelude::*;
+use std::{convert, io};
 
 const PROMPT: &[u8] = b"phoebe> ";
 

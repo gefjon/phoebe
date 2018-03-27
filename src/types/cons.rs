@@ -1,9 +1,9 @@
-use types::{reference, symbol, Object};
-use types::conversions::*;
-use gc::{GarbageCollected, GcMark};
-use types::pointer_tagging::{ObjectTag, PointerTag};
-use std::{cmp, convert, fmt};
 use evaluator::{Evaluate, EvaluatorError};
+use gc::{GarbageCollected, GcMark};
+use std::{cmp, convert, fmt};
+use types::conversions::*;
+use types::pointer_tagging::{ObjectTag, PointerTag};
+use types::{reference, symbol, Object};
 
 lazy_static! {
     static ref CONS_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"cons") };
@@ -119,8 +119,8 @@ impl GarbageCollected for Cons {
 #[cfg(test)]
 mod test {
     use super::*;
-    use types::Object;
     use allocate::Allocate;
+    use types::Object;
     #[test]
     fn format_a_cons() {
         let c = Cons::new(

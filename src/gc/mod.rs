@@ -1,7 +1,7 @@
-use std::sync::atomic::{self, AtomicUsize};
-use std::default::Default;
-use stack::gc_mark_stack;
 use allocate::{alloced_count, deallocate, Deallocate, ALLOCED_OBJECTS};
+use stack::gc_mark_stack;
+use std::default::Default;
+use std::sync::atomic::{self, AtomicUsize};
 
 static INITIAL_GC_THRESHOLD: usize = 4;
 

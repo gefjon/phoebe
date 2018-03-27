@@ -1,5 +1,5 @@
-use types::Object;
 use symbol_lookup::make_symbol;
+use types::Object;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Sign {

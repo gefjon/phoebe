@@ -1,7 +1,7 @@
-use types::pointer_tagging::{ObjectTag, PointerTag};
-use std::{convert, fmt};
 use super::Object;
 use super::conversions::*;
+use std::{convert, fmt};
+use types::pointer_tagging::{ObjectTag, PointerTag};
 
 const IMMEDIATE_TAG_MASK: u64 = 0xffff << 32;
 

@@ -1,8 +1,8 @@
-use types::{reference, symbol, Object};
 use gc::{GarbageCollected, GcMark};
-use types::pointer_tagging::{ObjectTag, PointerTag};
-use types::conversions::*;
 use std::{convert, fmt, ops};
+use types::conversions::*;
+use types::pointer_tagging::{ObjectTag, PointerTag};
+use types::{reference, symbol, Object};
 
 lazy_static! {
     static ref HEAP_OBJECT_TYPE_NAME: symbol::SymRef =

@@ -1,6 +1,6 @@
-use types::{ExpandedObject, Object};
-use std::{convert, heap, ptr, sync};
 use std::heap::Alloc;
+use std::{convert, heap, ptr, sync};
+use types::{ExpandedObject, Object};
 
 lazy_static! {
     pub static ref ALLOCED_OBJECTS: sync::Mutex<Vec<Object>> = { sync::Mutex::new(Vec::new()) };

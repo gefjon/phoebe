@@ -1,7 +1,7 @@
-use std::{borrow, convert, fmt, ops};
-use super::{symbol, Object};
-use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
+use super::pointer_tagging::{ObjectTag, PointerTag};
+use super::{symbol, Object};
+use std::{borrow, convert, fmt, ops};
 
 lazy_static! {
     static ref REFERENCE_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"reference") };

@@ -9,15 +9,15 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
-pub mod types;
-mod symbol_lookup;
-mod stack;
-mod gc;
 mod allocate;
-pub mod reader;
-pub mod evaluator;
-pub mod printer;
-pub mod repl;
 mod builtins;
+pub mod evaluator;
+mod gc;
+pub mod printer;
+pub mod reader;
+pub mod repl;
+mod stack;
+mod symbol_lookup;
+pub mod types;
 
 pub use repl::repl;

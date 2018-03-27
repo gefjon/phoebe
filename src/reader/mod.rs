@@ -1,5 +1,5 @@
-use types::{list, Object};
 use std::iter::{Iterator, Peekable};
+use types::{list, Object};
 
 mod read_num;
 use self::read_num::parse_to_object;

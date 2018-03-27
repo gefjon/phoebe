@@ -1,17 +1,17 @@
-use std::{convert, default, fmt};
 use gc::{GarbageCollected, GcMark};
+use std::{convert, default, fmt};
 
-mod pointer_tagging;
+pub mod cons;
 pub mod conversions;
+pub mod function;
+pub mod heap_object;
 pub mod immediate;
+pub mod list;
+pub mod namespace;
+pub mod number;
+mod pointer_tagging;
 pub mod reference;
 pub mod symbol;
-pub mod namespace;
-pub mod cons;
-pub mod heap_object;
-pub mod list;
-pub mod number;
-pub mod function;
 
 use self::conversions::*;
 

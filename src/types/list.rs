@@ -1,8 +1,8 @@
-use types::{pointer_tagging, symbol, Object};
-use types::conversions::*;
-use types::cons::Cons;
-use std::{cmp, convert, fmt, iter, mem};
 use allocate::Allocate;
+use std::{cmp, convert, fmt, iter, mem};
+use types::cons::Cons;
+use types::conversions::*;
+use types::{pointer_tagging, symbol, Object};
 
 lazy_static! {
     static ref LIST_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"list") };

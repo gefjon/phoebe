@@ -1,12 +1,12 @@
-use types::{cons, list, namespace, reference, symbol, Object};
-use types::namespace::NamespaceRef;
-use types::conversions::*;
-use gc::{GarbageCollected, GcMark};
-use symbol_lookup;
-use types::pointer_tagging::{ObjectTag, PointerTag};
-use std::{convert, fmt};
 use evaluator::{self, Evaluate, EvaluatorError};
+use gc::{GarbageCollected, GcMark};
 use stack::StackUnderflowError;
+use std::{convert, fmt};
+use symbol_lookup;
+use types::conversions::*;
+use types::namespace::NamespaceRef;
+use types::pointer_tagging::{ObjectTag, PointerTag};
+use types::{cons, list, namespace, reference, symbol, Object};
 
 lazy_static! {
     static ref FUNCTION_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"function") };

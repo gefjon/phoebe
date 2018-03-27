@@ -1,12 +1,12 @@
-use super::pointer_tagging::{ObjectTag, PointerTag};
-use std::collections::HashMap;
-use super::{heap_object, reference, symbol, Object};
-use types::symbol::SymRef;
 use super::conversions::*;
+use super::pointer_tagging::{ObjectTag, PointerTag};
+use super::{heap_object, reference, symbol, Object};
 use gc::{GarbageCollected, GcMark};
-use std::{convert, fmt, iter, ops};
+use std::collections::HashMap;
 use std::default::Default;
+use std::{convert, fmt, iter, ops};
 use symbol_lookup;
+use types::symbol::SymRef;
 
 lazy_static! {
     static ref NAMESPACE_TYPE_NAME: SymRef = { symbol_lookup::make_symbol(b"namespace") };
@@ -44,8 +44,8 @@ impl NamespaceRef {
                 let table = table
                     .iter()
                     .map(|(&s, &r)| {
-                        use types::heap_object::HeapObject;
                         use allocate::Allocate;
+                        use types::heap_object::HeapObject;
 
                         let h = HeapObject::allocate(HeapObject::around(*r));
                         (s, unsafe { <*mut HeapObject>::from_unchecked(h) })
@@ -178,8 +178,8 @@ impl iter::FromIterator<(SymRef, Object)> for Namespace {
     where
         I: iter::IntoIterator<Item = (SymRef, Object)>,
     {
-        use types::heap_object::HeapObject;
         use allocate::Allocate;
+        use types::heap_object::HeapObject;
 
         let table = iter.into_iter()
             .map(|(r, o)| {
@@ -290,8 +290,8 @@ impl Namespace {
     /// parent envs. It is called by
     /// `symbol_lookup::make_from_[default_]global_namespace`.
     pub fn make_sym_ref(&mut self, sym: SymRef) -> reference::Reference {
-        use std::default::Default;
         use allocate::Allocate;
+        use std::default::Default;
 
         match *self {
             Namespace::Heap { ref mut table, .. } => {

@@ -1,7 +1,7 @@
+use gc;
 use std::cell;
 use types::Object;
 use types::reference::Reference;
-use gc;
 
 const STACK_CAPACITY: usize = 128;
 

@@ -1,11 +1,11 @@
-use types::{reference, Object};
-use types::symbol::{SymRef, Symbol};
-use types::namespace::{Namespace, NamespaceRef};
 use allocate::Allocate;
-use types::conversions::*;
-use std::{cell, sync};
-use std::collections::HashMap;
 use gc;
+use std::collections::HashMap;
+use std::{cell, sync};
+use types::conversions::*;
+use types::namespace::{Namespace, NamespaceRef};
+use types::symbol::{SymRef, Symbol};
+use types::{reference, Object};
 
 static GLOBAL_NAMESPACE_NAME: &[u8] = b"global-namespace";
 

@@ -1,10 +1,10 @@
-use std::{convert, fmt, mem, ops, ptr, slice, str};
 use super::Object;
-use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
+use super::pointer_tagging::{ObjectTag, PointerTag};
 use allocate::{Allocate, DeallocError, Deallocate};
 use gc::{GarbageCollected, GcMark};
 use std::heap::{self, Alloc, Heap, Layout};
+use std::{convert, fmt, mem, ops, ptr, slice, str};
 use symbol_lookup::make_symbol;
 
 lazy_static! {
@@ -226,8 +226,8 @@ impl FromObject for *mut Symbol {
 #[cfg(test)]
 mod test {
     use super::*;
-    use types::Object;
     use std::ptr;
+    use types::Object;
     #[test]
     fn tag_and_untag() {
         let obj = Object::from(SymRef(ptr::null_mut()));

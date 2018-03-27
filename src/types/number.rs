@@ -1,7 +1,7 @@
-use types::{self, reference, symbol, Object};
-use types::conversions::*;
 use std::{cmp, convert};
 use symbol_lookup::make_symbol;
+use types::conversions::*;
+use types::{self, reference, symbol, Object};
 
 lazy_static! {
     static ref NUMBER_TYPE_NAME: symbol::SymRef = { make_symbol(b"number") };

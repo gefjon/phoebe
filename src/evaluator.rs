@@ -1,10 +1,10 @@
-use types::{list, ExpandedObject, Object};
-use types::reference::Reference;
-use symbol_lookup::{lookup_symbol, UnboundSymbolError};
 use gc::gc_maybe_pass;
 use stack::{StackOverflowError, StackUnderflowError};
 use std::convert;
+use symbol_lookup::{lookup_symbol, UnboundSymbolError};
 use types::conversions::ConversionError;
+use types::reference::Reference;
+use types::{list, ExpandedObject, Object};
 
 #[derive(Fail, Debug)]
 pub enum EvaluatorError {

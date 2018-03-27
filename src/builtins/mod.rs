@@ -1,11 +1,11 @@
-use types::Object;
-use types::list::List;
-use types::cons::Cons;
-use types::namespace::Namespace;
-use types::conversions::*;
-use types::symbol::SymRef;
 use evaluator::{Evaluate, EvaluatorError};
 use symbol_lookup;
+use types::Object;
+use types::cons::Cons;
+use types::conversions::*;
+use types::list::List;
+use types::namespace::Namespace;
+use types::symbol::SymRef;
 
 #[macro_use]
 mod macros;
