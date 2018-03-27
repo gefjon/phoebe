@@ -9,9 +9,7 @@ use std::default::Default;
 use symbol_lookup;
 
 lazy_static! {
-    static ref NAMESPACE_TYPE_NAME: SymRef = {
-        symbol_lookup::make_symbol(b"namespace")
-    };
+    static ref NAMESPACE_TYPE_NAME: SymRef = { symbol_lookup::make_symbol(b"namespace") };
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]

@@ -3,9 +3,7 @@ use std::{convert, heap, ptr, sync};
 use std::heap::Alloc;
 
 lazy_static! {
-    pub static ref ALLOCED_OBJECTS: sync::Mutex<Vec<Object>> = {
-        sync::Mutex::new(Vec::new())
-    };
+    pub static ref ALLOCED_OBJECTS: sync::Mutex<Vec<Object>> = { sync::Mutex::new(Vec::new()) };
 }
 
 pub fn alloced_count() -> usize {

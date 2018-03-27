@@ -8,9 +8,7 @@ use std::heap::{self, Alloc, Heap, Layout};
 use symbol_lookup::make_symbol;
 
 lazy_static! {
-    static ref SYMBOL_TYPE_NAME: SymRef = {
-        make_symbol(b"symbol")
-    };
+    static ref SYMBOL_TYPE_NAME: SymRef = { make_symbol(b"symbol") };
 }
 
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]

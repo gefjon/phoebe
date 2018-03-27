@@ -5,9 +5,7 @@ use std::{cmp, convert, fmt, iter, mem};
 use allocate::Allocate;
 
 lazy_static! {
-    static ref LIST_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"list")
-    };
+    static ref LIST_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"list") };
 }
 
 #[derive(Copy, Clone)]

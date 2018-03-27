@@ -5,9 +5,8 @@ use types::conversions::*;
 use std::{convert, fmt, ops};
 
 lazy_static! {
-    static ref HEAP_OBJECT_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"heap-object")
-    };
+    static ref HEAP_OBJECT_TYPE_NAME: symbol::SymRef =
+        { ::symbol_lookup::make_symbol(b"heap-object") };
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]

@@ -6,9 +6,7 @@ use std::{cmp, convert, fmt};
 use evaluator::{Evaluate, EvaluatorError};
 
 lazy_static! {
-    static ref CONS_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"cons")
-    };
+    static ref CONS_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"cons") };
 }
 
 #[derive(Clone, Debug)]

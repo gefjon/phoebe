@@ -1,4 +1,4 @@
-use std::sync::atomic;
+use std::sync::atomic::{self, AtomicUsize};
 use std::default::Default;
 use stack::gc_mark_stack;
 use allocate::{alloced_count, deallocate, Deallocate, ALLOCED_OBJECTS};
@@ -6,12 +6,8 @@ use allocate::{alloced_count, deallocate, Deallocate, ALLOCED_OBJECTS};
 static INITIAL_GC_THRESHOLD: usize = 4;
 
 lazy_static! {
-    static ref THE_GC_MARK: atomic::AtomicUsize = {
-        atomic::AtomicUsize::new(GcMark::default())
-    };
-    static ref GC_THRESHOLD: atomic::AtomicUsize = {
-        atomic::AtomicUsize::new(INITIAL_GC_THRESHOLD)
-    };
+    static ref THE_GC_MARK: AtomicUsize = { AtomicUsize::new(GcMark::default()) };
+    static ref GC_THRESHOLD: AtomicUsize = { AtomicUsize::new(INITIAL_GC_THRESHOLD) };
 }
 
 pub type GcMark = usize;

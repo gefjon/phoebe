@@ -6,12 +6,10 @@ use super::conversions::*;
 const IMMEDIATE_TAG_MASK: u64 = 0xffff << 32;
 
 lazy_static! {
-    static ref IMMEDIATE_TYPE_NAME: ::types::symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"immediate")
-    };
-    static ref SPECIAL_MARKER_TYPE_NAME: ::types::symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"special-marker")
-    };
+    static ref IMMEDIATE_TYPE_NAME: ::types::symbol::SymRef =
+        { ::symbol_lookup::make_symbol(b"immediate") };
+    static ref SPECIAL_MARKER_TYPE_NAME: ::types::symbol::SymRef =
+        { ::symbol_lookup::make_symbol(b"special-marker") };
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]

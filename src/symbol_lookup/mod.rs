@@ -10,14 +10,11 @@ use gc;
 static GLOBAL_NAMESPACE_NAME: &[u8] = b"global-namespace";
 
 lazy_static! {
-    pub static ref SYMBOLS_HEAP: sync::Mutex<HashMap<Vec<u8>, SymRef>> = {
-        sync::Mutex::new(HashMap::new())
-    };
+    pub static ref SYMBOLS_HEAP: sync::Mutex<HashMap<Vec<u8>, SymRef>> =
+        { sync::Mutex::new(HashMap::new()) };
     static ref DEFAULT_GLOBAL_ENV: NamespaceRef = {
         let n = Namespace::allocate(
-            Namespace::default().with_name(
-                Object::from(make_symbol(GLOBAL_NAMESPACE_NAME))
-            )
+            Namespace::default().with_name(Object::from(make_symbol(GLOBAL_NAMESPACE_NAME))),
         );
         unsafe { n.into_unchecked() }
     };

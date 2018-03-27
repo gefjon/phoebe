@@ -245,7 +245,7 @@ mod test {
                 integral: b"1",
                 fractional: b"23",
                 exp: 0,
-            })
+            },)
         );
 
         let res = parse_decimal(b"100");
@@ -259,7 +259,7 @@ mod test {
                 integral: b"1",
                 fractional: b"",
                 exp: 100,
-            })
+            },)
         );
 
         let res = parse_decimal(b"-10e-2");
@@ -270,7 +270,7 @@ mod test {
                 integral: b"10",
                 fractional: b"",
                 exp: -2,
-            })
+            },)
         );
     }
     #[test]

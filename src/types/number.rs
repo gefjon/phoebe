@@ -4,9 +4,7 @@ use std::{cmp, convert};
 use symbol_lookup::make_symbol;
 
 lazy_static! {
-    static ref NUMBER_TYPE_NAME: symbol::SymRef = {
-        make_symbol(b"number")
-    };
+    static ref NUMBER_TYPE_NAME: symbol::SymRef = { make_symbol(b"number") };
 }
 
 #[derive(Clone, Copy)]

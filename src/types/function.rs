@@ -9,15 +9,9 @@ use evaluator::{self, Evaluate, EvaluatorError};
 use stack::StackUnderflowError;
 
 lazy_static! {
-    static ref FUNCTION_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"function")
-    };
-    pub static ref OPTIONAL: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"&optional")
-    };
-    pub static ref REST: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"&rest")
-    };
+    static ref FUNCTION_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"function") };
+    pub static ref OPTIONAL: symbol::SymRef = { ::symbol_lookup::make_symbol(b"&optional") };
+    pub static ref REST: symbol::SymRef = { ::symbol_lookup::make_symbol(b"&rest") };
 }
 
 enum ArgType {

@@ -4,9 +4,7 @@ use super::pointer_tagging::{ObjectTag, PointerTag};
 use super::conversions::*;
 
 lazy_static! {
-    static ref REFERENCE_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"reference")
-    };
+    static ref REFERENCE_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"reference") };
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
