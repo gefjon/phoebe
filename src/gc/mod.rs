@@ -17,12 +17,12 @@ lazy_static! {
 pub type GcMark = usize;
 
 fn should_gc_run() -> bool {
-    alloced_count() > GC_THRESHOLD.load(atomic::Ordering::SeqCst)
+    alloced_count() > GC_THRESHOLD.load(atomic::Ordering::Relaxed)
 }
 
 fn update_gc_threshold() {
     let new_thresh = alloced_count() * 2;
-    GC_THRESHOLD.store(new_thresh, atomic::Ordering::SeqCst);
+    GC_THRESHOLD.store(new_thresh, atomic::Ordering::Relaxed);
 }
 
 fn sweep(m: GcMark) {
@@ -50,7 +50,7 @@ fn mark_scope(m: GcMark) {
 
 pub fn gc_pass() {
     info!("Garbage collecting.");
-    let mark = THE_GC_MARK.fetch_add(1, atomic::Ordering::SeqCst);
+    let mark = THE_GC_MARK.fetch_add(1, atomic::Ordering::Relaxed);
     gc_mark_stack(mark);
     mark_scope(mark);
     sweep(mark);
