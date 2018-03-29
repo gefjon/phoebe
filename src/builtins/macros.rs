@@ -2,7 +2,6 @@ macro_rules! special_form {
     ($name:expr ; ($($arg:tt)*) -> $blk:block) => {
         {
             use $crate::types::function::Function;
-            use $crate::allocate::Allocate;
 
             let name = $crate::symbol_lookup::make_symbol(
                 ::std::convert::AsRef::<[u8]>::as_ref($name)
@@ -11,7 +10,7 @@ macro_rules! special_form {
             let body = Box::new(move || {
                 get_args!($($arg)*);
                 $blk
-            });
+            }) as Box<Fn() -> Result<Object, EvaluatorError>>;
             let arglist = make_arglist!($($arg)*);
             let func = Function::allocate(
                 Function::make_special_form(
@@ -21,7 +20,7 @@ macro_rules! special_form {
                     $crate::symbol_lookup::default_global_env()
                 ).unwrap()
             );
-            $crate::symbol_lookup::add_to_global(name, func);
+            $crate::symbol_lookup::add_to_global(name, Object::from(func));
         }
     };
 }
@@ -30,7 +29,6 @@ macro_rules! builtin_func {
     ($name:expr ; ($($arg:tt)*) -> $blk:block) => {
         {
             use $crate::types::function::Function;
-            use $crate::allocate::Allocate;
 
             let name = $crate::symbol_lookup::make_symbol(
                 ::std::convert::AsRef::<[u8]>::as_ref($name)
@@ -39,7 +37,7 @@ macro_rules! builtin_func {
             let body = Box::new(move || {
                 get_args!($($arg)*);
                 $blk
-            });
+            }) as Box<Fn() -> Result<Object, EvaluatorError>>;
             let arglist = make_arglist!($($arg)*);
             let func = Function::allocate(
                 Function::make_builtin(
@@ -49,7 +47,7 @@ macro_rules! builtin_func {
                     $crate::symbol_lookup::default_global_env()
                 ).unwrap()
             );
-            $crate::symbol_lookup::add_to_global(name, func);
+            $crate::symbol_lookup::add_to_global(name, Object::from(func));
         }
     };
 }
@@ -75,20 +73,20 @@ macro_rules! make_arg_syms {
 
 macro_rules! get_args {
     ($($arg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg.clone())?;)*;
     };
     ($($arg:ident)* &optional $($oarg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
-        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg)?;)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg.clone())?;)*;
+        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg.clone())?;)*;
     };
     ($($arg:ident)* &rest $($rarg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
-        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg)?;)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg.clone())?;)*;
+        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg.clone())?;)*;
     };
     ($($arg:ident)* &optional $($oarg:ident)* &rest $($rarg:ident)*) => {
-        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg)?;)*;
-        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg)?;)*;
-        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg)?;)*;
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg.clone())?;)*;
+        $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg.clone())?;)*;
+        $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg.clone())?;)*;
     };
 }
 

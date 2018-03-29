@@ -1,10 +1,10 @@
+use prelude::*;
 use std::{cmp, convert};
 use symbol_lookup::make_symbol;
-use types::conversions::*;
-use types::{self, reference, symbol, Object};
+use types::pointer_tagging;
 
 lazy_static! {
-    static ref NUMBER_TYPE_NAME: symbol::SymRef = { make_symbol(b"number") };
+    static ref NUMBER_TYPE_NAME: GcRef<Symbol> = { make_symbol(b"number") };
 }
 
 #[derive(Clone, Copy)]
@@ -94,10 +94,17 @@ impl MaybeFrom<Object> for PhoebeNumber {
             Some(PhoebeNumber::Float(f))
         } else if let Some(n) = i32::maybe_from(obj) {
             Some(PhoebeNumber::Integer(n))
-        } else if let Some(reference) = reference::Reference::maybe_from(obj) {
+        } else if let Some(reference) = Reference::maybe_from(obj) {
             PhoebeNumber::maybe_from(*reference)
         } else {
             None
+        }
+    }
+    fn try_from(obj: Object) -> Result<PhoebeNumber, ConversionError> {
+        if let Some(t) = PhoebeNumber::maybe_from(obj) {
+            Ok(t)
+        } else {
+            Err(ConversionError::wanted(PhoebeNumber::type_name()))
         }
     }
 }
@@ -106,12 +113,12 @@ impl FromObject for PhoebeNumber {
     /// pointer tagging is not meaningful for `PhoebeNumber` and
     /// `is_type` is overwritten, but we still have to provide a `Tag`
     /// and an `associated_tag`.
-    type Tag = types::pointer_tagging::ObjectTag;
-    fn associated_tag() -> types::pointer_tagging::ObjectTag {
+    type Tag = pointer_tagging::ObjectTag;
+    fn associated_tag() -> pointer_tagging::ObjectTag {
         unreachable!()
     }
 
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *NUMBER_TYPE_NAME
     }
 
@@ -126,6 +133,13 @@ impl MaybeFrom<PhoebeNumber> for i32 {
             Some(n)
         } else {
             None
+        }
+    }
+    fn try_from(obj: PhoebeNumber) -> Result<i32, ConversionError> {
+        if let Some(t) = i32::maybe_from(obj) {
+            Ok(t)
+        } else {
+            Err(ConversionError::wanted(i32::type_name()))
         }
     }
 }

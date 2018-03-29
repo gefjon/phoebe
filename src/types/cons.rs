@@ -1,19 +1,27 @@
-use evaluator::{Evaluate, EvaluatorError};
-use gc::{GarbageCollected, GcMark};
+use prelude::*;
 use std::{cmp, convert, fmt};
-use types::conversions::*;
 use types::pointer_tagging::{ObjectTag, PointerTag};
-use types::{reference, symbol, Object};
 
 lazy_static! {
-    static ref CONS_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"cons") };
+    static ref CONS_TYPE_NAME: GcRef<Symbol> = { ::symbol_lookup::make_symbol(b"cons") };
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Cons {
     gc_marking: GcMark,
     pub car: Object,
     pub cdr: Object,
+}
+
+impl Clone for Cons {
+    fn clone(&self) -> Cons {
+        let &Cons { car, cdr, .. } = self;
+        Cons {
+            car,
+            cdr,
+            gc_marking: GcMark::default(),
+        }
+    }
 }
 
 impl cmp::PartialEq for Cons {
@@ -30,47 +38,42 @@ impl Cons {
             cdr,
         }
     }
-    pub fn ref_car(&mut self) -> reference::Reference {
-        reference::Reference::from(&mut self.car)
+    pub fn ref_car(&mut self) -> Reference {
+        Reference::from(&mut self.car)
     }
-    pub fn ref_cdr(&mut self) -> reference::Reference {
-        reference::Reference::from(&mut self.cdr)
+    pub fn ref_cdr(&mut self) -> Reference {
+        Reference::from(&mut self.cdr)
     }
 }
 
 impl Evaluate for Cons {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
-        use types::function::Function;
-        use types::list::List;
-
-        let mut l: List = Object::from(self as *const Cons as *mut Cons).try_into()?;
+        let mut l = List::try_from(unsafe { GcRef::from_ptr(self as *const Cons as *mut Cons) })?;
         let f = l.next().unwrap();
-        let func: &Function = f.evaluate()?.try_into()?;
+        let func = <GcRef<Function>>::try_from(f.evaluate()?)?;
         func.call(l)
     }
-    fn eval_to_reference(&self) -> Result<reference::Reference, EvaluatorError> {
-        use types::function::Function;
-        use types::list::List;
-
-        let mut l: List = Object::from(self as *const Cons as *mut Cons).try_into()?;
+    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
+        let mut l = List::try_from(unsafe { GcRef::from_ptr(self as *const Cons as *mut Cons) })?;
         let f = l.next().unwrap();
-        let func: &Function = f.evaluate()?.try_into()?;
+        let func = <GcRef<Function>>::try_from(f.evaluate()?)?;
         func.call_to_reference(l)
     }
 }
 
 impl fmt::Display for Cons {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let &Cons {
+        let Cons {
             car, cdr: mut curr, ..
-        } = self;
+        } = *self;
         write!(f, "({}", car)?;
         loop {
-            if let Some(&Cons { car, cdr, .. }) = <&Cons>::maybe_from(curr) {
+            if curr.nilp() {
+                break;
+            } else if let Some(c) = <GcRef<Cons>>::maybe_from(curr) {
+                let Cons { car, cdr, .. } = *c;
                 curr = cdr;
                 write!(f, " {}", car)?;
-            } else if curr.nilp() {
-                break;
             } else {
                 write!(f, " . {}", curr)?;
                 break;
@@ -80,37 +83,43 @@ impl fmt::Display for Cons {
     }
 }
 
-impl convert::From<*mut Cons> for Object {
-    fn from(c: *mut Cons) -> Object {
-        Object(ObjectTag::Cons.tag(c as u64))
+impl convert::From<GcRef<Cons>> for Object {
+    fn from(c: GcRef<Cons>) -> Object {
+        Object::from_raw(ObjectTag::Cons.tag(c.into_ptr() as u64))
     }
 }
 
-impl FromUnchecked<Object> for *mut Cons {
-    unsafe fn from_unchecked(obj: Object) -> *mut Cons {
-        debug_assert!(<*mut Cons>::is_type(obj));
-        <*mut Cons>::associated_tag().untag(obj.0) as *mut Cons
+impl FromUnchecked<Object> for GcRef<Cons> {
+    unsafe fn from_unchecked(obj: Object) -> Self {
+        debug_assert!(Self::is_type(obj));
+        GcRef::from_ptr(Self::associated_tag().untag(obj.0) as *mut Cons)
     }
 }
 
-impl FromObject for *mut Cons {
+impl FromObject for GcRef<Cons> {
     type Tag = ObjectTag;
     fn associated_tag() -> ObjectTag {
         ObjectTag::Cons
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *CONS_TYPE_NAME
     }
 }
 
 impl GarbageCollected for Cons {
+    type ConvertFrom = Cons;
+    fn alloc_one_and_initialize(o: Self) -> ::std::ptr::NonNull<Self> {
+        use std::heap::{Alloc, Heap};
+        use std::ptr;
+        let nn = Heap.alloc_one().unwrap();
+        let p = nn.as_ptr();
+        unsafe { ptr::write(p, o) };
+        nn
+    }
     fn my_marking(&self) -> &GcMark {
         &self.gc_marking
     }
-    fn my_marking_mut(&mut self) -> &mut GcMark {
-        &mut self.gc_marking
-    }
-    fn gc_mark_children(&mut self, mark: GcMark) {
+    fn gc_mark_children(&mut self, mark: usize) {
         self.car.gc_mark(mark);
         self.cdr.gc_mark(mark);
     }
@@ -119,16 +128,19 @@ impl GarbageCollected for Cons {
 #[cfg(test)]
 mod test {
     use super::*;
-    use allocate::Allocate;
+    use gc::GarbageCollected;
     use types::Object;
     #[test]
     fn format_a_cons() {
         let c = Cons::new(
             Object::from(1i32),
-            Cons::allocate(Cons::new(
+            Object::from(Cons::allocate(Cons::new(
                 Object::from(2i32),
-                Cons::allocate(Cons::new(Object::from(3i32), Object::from(4i32))),
-            )),
+                Object::from(Cons::allocate(Cons::new(
+                    Object::from(3i32),
+                    Object::from(4i32),
+                ))),
+            ))),
         );
         assert_eq!(format!("{}", c), "(1 2 3 . 4)");
     }

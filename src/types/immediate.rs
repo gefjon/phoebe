@@ -1,15 +1,13 @@
-use super::Object;
-use super::conversions::*;
+use prelude::*;
 use std::{convert, fmt};
 use types::pointer_tagging::{ObjectTag, PointerTag};
 
 const IMMEDIATE_TAG_MASK: u64 = 0xffff << 32;
 
 lazy_static! {
-    static ref IMMEDIATE_TYPE_NAME: ::types::symbol::SymRef =
-        { ::symbol_lookup::make_symbol(b"immediate") };
-    static ref SPECIAL_MARKER_TYPE_NAME: ::types::symbol::SymRef =
-        { ::symbol_lookup::make_symbol(b"special-marker") };
+    static ref IMMEDIATE_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"immediate") };
+    static ref SPECIAL_MARKER_TYPE_NAME: GcRef<Symbol> =
+        { symbol_lookup::make_symbol(b"special-marker") };
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -21,7 +19,9 @@ pub enum Immediate {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
-/// This enum represents special values an `Object` can hold.
+/// This enum represents special values an `Object` can hold. It is
+/// [repr(u32)] because all `Immediate` values must fit in a `u32`;
+/// the other bytes are used as a tag.
 pub enum SpecialMarker {
     /// The default `Object`; using it as a value represents an error
     /// condition.
@@ -59,7 +59,7 @@ impl FromObject for SpecialMarker {
     fn associated_tag() -> ImmediateTag {
         ImmediateTag::SpecialMarker
     }
-    fn type_name() -> super::symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *SPECIAL_MARKER_TYPE_NAME
     }
 }
@@ -102,14 +102,14 @@ impl FromObject for Immediate {
     fn associated_tag() -> ObjectTag {
         ObjectTag::Immediate
     }
-    fn type_name() -> super::symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *IMMEDIATE_TYPE_NAME
     }
 }
 
 impl convert::From<Immediate> for Object {
     fn from(i: Immediate) -> Object {
-        Object(match i {
+        Object::from_raw(match i {
             Immediate::Bool(b) => ImmediateTag::Bool.tag(b as u64),
             Immediate::Integer(n) => ImmediateTag::Integer.tag(u64::from(n as u32)),
             Immediate::SpecialMarker(s) => ImmediateTag::SpecialMarker.tag(u64::from(s as u32)),
@@ -131,19 +131,19 @@ impl convert::From<i32> for Immediate {
 
 impl convert::From<i32> for Object {
     fn from(n: i32) -> Object {
-        Object(ImmediateTag::Integer.tag(u64::from(n as u32)))
+        Object::from_raw(ImmediateTag::Integer.tag(u64::from(n as u32)))
     }
 }
 
 impl convert::From<bool> for Object {
     fn from(b: bool) -> Object {
-        Object(ImmediateTag::Bool.tag(b as u64))
+        Object::from_raw(ImmediateTag::Bool.tag(b as u64))
     }
 }
 
 impl convert::From<SpecialMarker> for Object {
     fn from(s: SpecialMarker) -> Object {
-        Object(ImmediateTag::SpecialMarker.tag(u64::from(s as u32)))
+        Object::from_raw(ImmediateTag::SpecialMarker.tag(u64::from(s as u32)))
     }
 }
 

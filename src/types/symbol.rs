@@ -1,81 +1,12 @@
-use super::Object;
-use super::conversions::*;
 use super::pointer_tagging::{ObjectTag, PointerTag};
-use allocate::{Allocate, DeallocError, Deallocate};
-use gc::{GarbageCollected, GcMark};
+use prelude::*;
 use std::heap::{self, Alloc, Heap, Layout};
-use std::{convert, fmt, mem, ops, ptr, slice, str};
+use std::ptr::NonNull;
+use std::{convert, fmt, hash, mem, ptr, slice, str};
 use symbol_lookup::make_symbol;
 
 lazy_static! {
-    static ref SYMBOL_TYPE_NAME: SymRef = { make_symbol(b"symbol") };
-}
-
-#[derive(PartialEq, Eq, Clone, Copy, Hash)]
-pub struct SymRef(*mut Symbol);
-
-impl SymRef {
-    pub fn gc_mark(self, m: GcMark) {
-        unsafe { &mut *(self.0) }.gc_mark(m);
-    }
-}
-
-impl AsRef<Symbol> for SymRef {
-    fn as_ref(&self) -> &Symbol {
-        unsafe { &*(self.0) }
-    }
-}
-
-impl AsMut<Symbol> for SymRef {
-    fn as_mut(&mut self) -> &mut Symbol {
-        unsafe { &mut *(self.0) }
-    }
-}
-
-impl ops::Deref for SymRef {
-    type Target = Symbol;
-    fn deref(&self) -> &Symbol {
-        self.as_ref()
-    }
-}
-
-impl convert::From<SymRef> for *mut Symbol {
-    fn from(s: SymRef) -> *mut Symbol {
-        s.0
-    }
-}
-
-unsafe impl Send for SymRef {}
-unsafe impl Sync for SymRef {}
-
-impl convert::From<*mut Symbol> for SymRef {
-    fn from(s: *mut Symbol) -> SymRef {
-        SymRef(s)
-    }
-}
-
-impl<'any> convert::From<&'any mut Symbol> for SymRef {
-    fn from(s: &mut Symbol) -> SymRef {
-        SymRef(s as *mut Symbol)
-    }
-}
-
-impl convert::From<SymRef> for Object {
-    fn from(s: SymRef) -> Object {
-        Object::from(s.0 as *mut Symbol)
-    }
-}
-
-impl fmt::Debug for SymRef {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", AsRef::<Symbol>::as_ref(self))
-    }
-}
-
-impl fmt::Display for SymRef {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", AsRef::<Symbol>::as_ref(self))
-    }
+    static ref SYMBOL_TYPE_NAME: GcRef<Symbol> = { make_symbol(b"symbol") };
 }
 
 pub struct Symbol {
@@ -84,15 +15,28 @@ pub struct Symbol {
     head: u8,
 }
 
-impl Allocate<Symbol> for Symbol {
-    fn alloc_one_and_initialize(_: Symbol) -> *mut Symbol {
-        panic!("attempt to use default allocator on an unsized type!")
+impl hash::Hash for Symbol {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        AsRef::<[u8]>::as_ref(self).hash(state);
     }
 }
 
-impl<'any> Allocate<&'any [u8]> for Symbol {
-    fn alloc_one_and_initialize(text: &[u8]) -> *mut Symbol {
+impl GarbageCollected for Symbol {
+    /// The understanding here is that `ConvertFrom` is a **valid**
+    /// `*const [u8]`. This would be a `&[u8]` - its borrow only lasts
+    /// the lifetime of `alloc_one_and_intitialize` and so any `&[u8]`
+    /// is valid - but that would require it to be generic over the
+    /// lifetime of the `&[u8]` and Generic Associated Types is very
+    /// unstable.
+    type ConvertFrom = *const [u8];
+
+    fn alloc_one_and_initialize(text: *const [u8]) -> NonNull<Symbol> {
         use std::default::Default;
+
+        let text = unsafe { &*text };
 
         let layout = Symbol::make_layout(text.len());
         let pointer = match unsafe { Heap.alloc(layout) } {
@@ -105,31 +49,18 @@ impl<'any> Allocate<&'any [u8]> for Symbol {
         unsafe {
             ptr::copy_nonoverlapping(text.as_ptr(), sym_ref.pointer_mut(), text.len());
         }
-        pointer
+        unsafe { NonNull::new_unchecked(pointer) }
     }
-}
-
-impl Deallocate for Symbol {
-    unsafe fn deallocate(p: *mut Symbol) -> Result<(), DeallocError> {
-        if p.is_null() {
-            Err(DeallocError::NullPointer)
-        } else {
-            ptr::drop_in_place((&mut *p).as_mut() as *mut [u8]);
-            let layout = (&*p).my_layout();
-            heap::Heap.dealloc(p as *mut u8, layout);
-            Ok(())
-        }
+    unsafe fn deallocate(obj: GcRef<Self>) {
+        let p = obj.into_ptr();
+        ptr::drop_in_place((&mut *p).as_mut() as *mut [u8]);
+        let layout = (&*p).my_layout();
+        heap::Heap.dealloc(p as *mut u8, layout);
     }
-}
-
-impl GarbageCollected for Symbol {
     fn my_marking(&self) -> &GcMark {
         &self.gc_marking
     }
-    fn my_marking_mut(&mut self) -> &mut GcMark {
-        &mut self.gc_marking
-    }
-    fn gc_mark_children(&mut self, _: GcMark) {}
+    fn gc_mark_children(&mut self, _: usize) {}
 }
 
 impl Symbol {
@@ -184,63 +115,43 @@ impl fmt::Debug for Symbol {
     }
 }
 
-impl convert::From<*mut Symbol> for Object {
-    fn from(s: *mut Symbol) -> Object {
-        Object(ObjectTag::Symbol.tag(s as u64))
+impl convert::From<GcRef<Symbol>> for Object {
+    fn from(s: GcRef<Symbol>) -> Object {
+        Object::from_raw(ObjectTag::Symbol.tag(s.into_ptr() as u64))
     }
 }
 
-impl FromUnchecked<Object> for SymRef {
-    unsafe fn from_unchecked(obj: Object) -> SymRef {
-        SymRef(<*mut Symbol>::from_unchecked(obj))
-    }
-}
-
-impl FromObject for SymRef {
+impl FromObject for GcRef<Symbol> {
     type Tag = ObjectTag;
     fn associated_tag() -> ObjectTag {
         ObjectTag::Symbol
     }
-    fn type_name() -> SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *SYMBOL_TYPE_NAME
     }
 }
 
-impl FromUnchecked<Object> for *mut Symbol {
-    unsafe fn from_unchecked(obj: Object) -> *mut Symbol {
-        debug_assert!(<*mut Symbol>::is_type(obj));
-        <*mut Symbol>::associated_tag().untag(obj.0) as *mut Symbol
-    }
-}
-
-impl FromObject for *mut Symbol {
-    type Tag = ObjectTag;
-    fn associated_tag() -> ObjectTag {
-        ObjectTag::Symbol
-    }
-    fn type_name() -> SymRef {
-        *SYMBOL_TYPE_NAME
+impl FromUnchecked<Object> for GcRef<Symbol> {
+    unsafe fn from_unchecked(obj: Object) -> GcRef<Symbol> {
+        debug_assert!(Self::is_type(obj));
+        GcRef::from_ptr(Self::associated_tag().untag(obj.0) as *mut Symbol)
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::ptr;
     use types::Object;
     #[test]
     fn tag_and_untag() {
-        let obj = Object::from(SymRef(ptr::null_mut()));
-        assert_eq!(SymRef(ptr::null_mut()), unsafe {
-            SymRef::from_unchecked(obj)
-        });
-
-        let nonnull = 0xdead_beef as *mut Symbol;
-        let obj = Object::from(SymRef(nonnull));
-        assert_eq!(SymRef(nonnull), unsafe { SymRef::from_unchecked(obj) });
+        unsafe {
+            let nonnull = 0xdead_beef as *mut Symbol;
+            let obj = Object::from(GcRef::from_ptr(nonnull));
+            assert_eq!(GcRef::from_ptr(nonnull), GcRef::from_unchecked(obj));
+        }
     }
     #[test]
     fn symbol_type_name() {
-        assert_eq!(format!("{}", SymRef::type_name()), "symbol");
+        assert_eq!(format!("{}", GcRef::<Symbol>::type_name()), "symbol");
     }
 }

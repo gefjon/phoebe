@@ -1,4 +1,3 @@
-use gc;
 use std::cell;
 use types::Object;
 use types::reference::Reference;
@@ -31,7 +30,7 @@ pub fn ref_top() -> Reference {
 /// BUG: The `STACK` is thread local, but garbage collection is done
 /// globally. This means that the garbage collector cannot mark other
 /// threads' stacks and may deallocate them prematurely.
-pub fn gc_mark_stack(m: gc::GcMark) {
+pub fn gc_mark_stack(m: usize) {
     STACK.with(|s| {
         for obj in s.borrow().iter() {
             obj.gc_mark(m);

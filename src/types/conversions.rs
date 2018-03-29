@@ -1,61 +1,31 @@
-use types::pointer_tagging::PointerTag;
-use types::{pointer_tagging, reference, symbol, Object};
-
-#[derive(Fail, Debug)]
-#[fail(display = "Expected a value of type {}.", wanted_type)]
-pub struct ConversionError {
-    pub wanted_type: symbol::SymRef,
-}
+use prelude::*;
+use types::pointer_tagging::{self, PointerTag};
 
 lazy_static! {
-    static ref FLOAT_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"float")
+    static ref FLOAT_TYPE_NAME: GcRef<Symbol> = {
+        symbol_lookup::make_symbol(b"float")
     };
 
     // This could be changed to `fixnum` in the future if Phoebe gets
     // a `bignum` type and wants to use `integer` for the set of all
     // `fixnum`s and `bignum`s.
-    static ref INTEGER_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"integer")
+    static ref INTEGER_TYPE_NAME: GcRef<Symbol> = {
+        symbol_lookup::make_symbol(b"integer")
     };
-    static ref BOOL_TYPE_NAME: symbol::SymRef = {
-        ::symbol_lookup::make_symbol(b"boolean")
+    static ref BOOL_TYPE_NAME: GcRef<Symbol> = {
+        symbol_lookup::make_symbol(b"boolean")
     };
 }
 
-pub trait TryFrom<T: Sized>: Sized {
-    type Error: Sized;
-    fn try_from(t: T) -> Result<Self, Self::Error>;
+#[derive(Fail, Debug)]
+#[fail(display = "Expected a value of type {}.", wanted_type)]
+pub struct ConversionError {
+    pub wanted_type: GcRef<Symbol>,
 }
 
-pub trait TryInto<O: Sized>: Sized {
-    type Error: Sized;
-    fn try_into(self) -> Result<O, Self::Error>;
-}
-
-impl<T> TryFrom<Object> for T
-where
-    T: MaybeFrom<Object> + FromObject,
-{
-    type Error = ConversionError;
-    fn try_from(obj: Object) -> Result<T, ConversionError> {
-        if let Some(v) = T::maybe_from(obj) {
-            Ok(v)
-        } else {
-            Err(ConversionError {
-                wanted_type: T::type_name(),
-            })
-        }
-    }
-}
-
-impl<T, O> TryInto<T> for O
-where
-    T: TryFrom<O>,
-{
-    type Error = T::Error;
-    fn try_into(self) -> Result<T, Self::Error> {
-        T::try_from(self)
+impl ConversionError {
+    pub fn wanted(wanted_type: GcRef<Symbol>) -> ConversionError {
+        ConversionError { wanted_type }
     }
 }
 
@@ -66,6 +36,7 @@ where
 /// convert an `Object` into a type is not an error condition.
 pub trait MaybeFrom<T: Sized>: Sized {
     fn maybe_from(t: T) -> Option<Self>;
+    fn try_from(t: T) -> Result<Self, ConversionError>;
 }
 
 /// This trait is analogous to `std::convert::From` but marked
@@ -81,6 +52,7 @@ pub trait FromUnchecked<T: Sized>: Sized {
 /// `MaybeFrom` types.
 pub trait MaybeInto<T: Sized>: Sized {
     fn maybe_into(self) -> Option<T>;
+    fn try_into(self) -> Result<T, ConversionError>;
 }
 
 /// The companion trait to `FromUnchecked` - automatically derived for
@@ -99,7 +71,7 @@ pub trait FromObject {
     /// with a `lazy_static` which creates the `SymRef` and holds onto
     /// it; check the implementation for `f64`, `i32` or `bool` for
     /// examples.
-    fn type_name() -> symbol::SymRef;
+    fn type_name() -> GcRef<Symbol>;
 
     /// Returns `true` iff `obj` is a correctly tagged `Self`. Note
     /// that being correctly tagged does not necessarily imply being a
@@ -112,7 +84,7 @@ pub trait FromObject {
     /// A generalization of `is_type`; also returns `true` if `obj` is
     /// a `Reference` pointing to a correctly tagged `Self`.
     fn derefs_to(obj: Object) -> bool {
-        Self::is_type(obj) || if let Some(r) = reference::Reference::maybe_from(obj) {
+        Self::is_type(obj) || if let Some(r) = Reference::maybe_from(obj) {
             Self::derefs_to(*r)
         } else {
             false
@@ -127,10 +99,17 @@ where
     default fn maybe_from(obj: Object) -> Option<T> {
         if <T as FromObject>::is_type(obj) {
             Some(unsafe { T::from_unchecked(obj) })
-        } else if let Some(r) = reference::Reference::maybe_from(obj) {
+        } else if let Some(r) = Reference::maybe_from(obj) {
             T::maybe_from(*r)
         } else {
             None
+        }
+    }
+    default fn try_from(obj: Object) -> Result<T, ConversionError> {
+        if let Some(t) = T::maybe_from(obj) {
+            Ok(t)
+        } else {
+            Err(ConversionError::wanted(T::type_name()))
         }
     }
 }
@@ -150,6 +129,9 @@ where
 {
     fn maybe_into(self) -> Option<T> {
         T::maybe_from(self)
+    }
+    fn try_into(self) -> Result<T, ConversionError> {
+        T::try_from(self)
     }
 }
 
@@ -188,7 +170,7 @@ where
     fn associated_tag() -> Self::Tag {
         <*mut T as FromObject>::associated_tag()
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         <*mut T>::type_name()
     }
 }
@@ -201,7 +183,7 @@ where
     fn associated_tag() -> Self::Tag {
         <*const T as FromObject>::associated_tag()
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         <*const T>::type_name()
     }
 }
@@ -214,7 +196,7 @@ where
     fn associated_tag() -> Self::Tag {
         <*mut T as FromObject>::associated_tag()
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         <*mut T>::type_name()
     }
 }
@@ -230,7 +212,7 @@ impl FromObject for f64 {
     fn associated_tag() -> super::pointer_tagging::Floatp {
         super::pointer_tagging::Floatp::Float
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *FLOAT_TYPE_NAME
     }
 }
@@ -248,7 +230,7 @@ impl FromObject for bool {
     fn associated_tag() -> super::immediate::ImmediateTag {
         super::immediate::ImmediateTag::Bool
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *BOOL_TYPE_NAME
     }
 }
@@ -266,7 +248,7 @@ impl FromObject for i32 {
     fn associated_tag() -> super::immediate::ImmediateTag {
         super::immediate::ImmediateTag::Integer
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *INTEGER_TYPE_NAME
     }
 }

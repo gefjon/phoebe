@@ -1,27 +1,37 @@
-use allocate::{alloced_count, deallocate, Deallocate, ALLOCED_OBJECTS};
+use allocate::deallocate;
+use allocate::{alloced_count, ALLOCED_OBJECTS};
+use builtins::FINISHED_SOURCING_BUILTINS;
 use stack::gc_mark_stack;
-use std::default::Default;
-use std::sync::atomic::{self, AtomicUsize};
+use std::{thread, default::Default, sync::atomic::{AtomicBool, AtomicUsize, Ordering}};
 
-static INITIAL_GC_THRESHOLD: usize = 4;
+const INITIAL_GC_THRESHOLD: usize = 4;
+
+static IS_GC_RUNNING: AtomicBool = AtomicBool::new(false);
 
 lazy_static! {
-    static ref THE_GC_MARK: AtomicUsize = { AtomicUsize::new(GcMark::default()) };
+    static ref THE_GC_MARK: AtomicUsize = { AtomicUsize::default() };
     static ref GC_THRESHOLD: AtomicUsize = { AtomicUsize::new(INITIAL_GC_THRESHOLD) };
 }
 
-pub type GcMark = usize;
+pub mod garbage_collected;
+pub mod gc_ref;
+
+pub use self::garbage_collected::GarbageCollected;
+pub use self::gc_ref::GcRef;
+
+pub type GcMark = AtomicUsize;
 
 fn should_gc_run() -> bool {
-    alloced_count() > GC_THRESHOLD.load(atomic::Ordering::Relaxed)
+    FINISHED_SOURCING_BUILTINS.load(Ordering::Acquire)
+        && alloced_count() > GC_THRESHOLD.load(Ordering::Relaxed)
 }
 
 fn update_gc_threshold() {
     let new_thresh = alloced_count() * 2;
-    GC_THRESHOLD.store(new_thresh, atomic::Ordering::Relaxed);
+    GC_THRESHOLD.store(new_thresh, Ordering::Relaxed);
 }
 
-fn sweep(m: GcMark) {
+fn sweep(m: usize) {
     let mut heap = ALLOCED_OBJECTS.lock().unwrap();
     let mut new_heap = Vec::with_capacity(heap.len());
     for obj in heap.drain(..) {
@@ -36,7 +46,7 @@ fn sweep(m: GcMark) {
     *heap = new_heap;
 }
 
-fn mark_scope(m: GcMark) {
+fn mark_scope(m: usize) {
     use symbol_lookup::{gc_mark_scope, SYMBOLS_HEAP};
     for &s in SYMBOLS_HEAP.lock().unwrap().values() {
         s.gc_mark(m);
@@ -45,32 +55,20 @@ fn mark_scope(m: GcMark) {
 }
 
 pub fn gc_pass() {
+    if IS_GC_RUNNING.swap(true, Ordering::AcqRel) {
+        return;
+    }
     info!("Garbage collecting.");
-    let mark = THE_GC_MARK.fetch_add(1, atomic::Ordering::Relaxed);
+    let mark = THE_GC_MARK.fetch_add(1, Ordering::Relaxed);
     gc_mark_stack(mark);
     mark_scope(mark);
     sweep(mark);
     update_gc_threshold();
+    IS_GC_RUNNING.store(false, Ordering::Release);
 }
 
 pub fn gc_maybe_pass() {
     if should_gc_run() {
-        gc_pass();
-    }
-}
-
-pub trait GarbageCollected: Deallocate + ::std::fmt::Display {
-    fn my_marking(&self) -> &GcMark;
-    fn my_marking_mut(&mut self) -> &mut GcMark;
-    fn gc_mark_children(&mut self, mark: GcMark);
-    fn gc_mark(&mut self, mark: GcMark) {
-        debug!("Marking {}", self);
-        if *(self.my_marking()) != mark {
-            *(self.my_marking_mut()) = mark;
-            self.gc_mark_children(mark);
-        }
-    }
-    fn should_dealloc(&self, current_marking: GcMark) -> bool {
-        *(self.my_marking()) != current_marking
+        thread::spawn(gc_pass);
     }
 }

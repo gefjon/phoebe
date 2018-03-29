@@ -1,4 +1,4 @@
-use gc::{GarbageCollected, GcMark};
+use prelude::*;
 use std::{convert, default, fmt};
 
 pub mod cons;
@@ -13,52 +13,53 @@ mod pointer_tagging;
 pub mod reference;
 pub mod symbol;
 
-use self::conversions::*;
-
 /// Every Phoebe value is represented by an `Object`. `Object`s are
 /// NaN-boxed, and the non-`f64` values are pointer-tagged using
 /// `ObjectTag`.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Object(u64);
 
 impl Object {
+    pub fn from_raw(n: u64) -> Object {
+        Object(n)
+    }
     /// Used by the garbage collector. Returns `true` if this object
     /// should be passed to `allocate::deallocate` - heap objects will
     /// return `true` if their `gc_marking` does not match `mark` and
     /// by-value objects will always return `false`.
-    pub fn should_dealloc(self, mark: GcMark) -> bool {
+    pub fn should_dealloc(self, mark: usize) -> bool {
         match ExpandedObject::from(self) {
             ExpandedObject::Float(_)
             | ExpandedObject::Immediate(_)
             | ExpandedObject::Reference(_) => false,
-            ExpandedObject::Cons(c) => unsafe { &*c }.should_dealloc(mark),
+            ExpandedObject::Cons(c) => c.should_dealloc(mark),
             ExpandedObject::Symbol(s) => s.should_dealloc(mark),
-            ExpandedObject::Namespace(n) => unsafe { &*n }.should_dealloc(mark),
-            ExpandedObject::HeapObject(h) => unsafe { &*h }.should_dealloc(mark),
-            ExpandedObject::Function(func) => unsafe { &*func }.should_dealloc(mark),
+            ExpandedObject::Namespace(n) => n.should_dealloc(mark),
+            ExpandedObject::HeapObject(h) => h.should_dealloc(mark),
+            ExpandedObject::Function(func) => func.should_dealloc(mark),
         }
     }
     /// Used by the garbage collector - if `self` is a heap object,
     /// this method derefs and marks it so that it will not be
     /// deallocated. For by-value objects, this is a no-op.
-    pub fn gc_mark(self, mark: GcMark) {
+    pub fn gc_mark(self, mark: usize) {
         match ExpandedObject::from(self) {
             ExpandedObject::Float(_) | ExpandedObject::Immediate(_) => (),
             ExpandedObject::Reference(r) => (*r).gc_mark(mark),
-            ExpandedObject::Cons(c) => unsafe { &mut *c }.gc_mark(mark),
+            ExpandedObject::Cons(c) => c.gc_mark(mark),
             ExpandedObject::Symbol(s) => s.gc_mark(mark),
-            ExpandedObject::Namespace(n) => unsafe { &mut *n }.gc_mark(mark),
-            ExpandedObject::HeapObject(h) => unsafe { &mut *h }.gc_mark(mark),
-            ExpandedObject::Function(func) => unsafe { &mut *func }.gc_mark(mark),
+            ExpandedObject::Namespace(n) => n.gc_mark(mark),
+            ExpandedObject::HeapObject(h) => h.gc_mark(mark),
+            ExpandedObject::Function(func) => func.gc_mark(mark),
         }
     }
     /// This object represents the boolean `false`, or the null-pointer.
     pub fn nil() -> Self {
-        Object::from(immediate::Immediate::from(false))
+        Object::from(Immediate::from(false))
     }
     /// This object represents the boolean `true`.
     pub fn t() -> Self {
-        Object::from(immediate::Immediate::from(true))
+        Object::from(Immediate::from(true))
     }
     /// A special marker value (of type `Immediate(SpecialMarker)`)
     /// denoting an uninitialized value
@@ -95,9 +96,9 @@ impl Object {
         match (ExpandedObject::from(self), ExpandedObject::from(other)) {
             (ExpandedObject::Reference(r), _) => other.equal(*r),
             (_, ExpandedObject::Reference(r)) => self.equal(*r),
-            (ExpandedObject::Cons(a), ExpandedObject::Cons(b)) => unsafe { *a == *b },
-            (ExpandedObject::HeapObject(r), _) => other.equal(unsafe { **r }),
-            (_, ExpandedObject::HeapObject(r)) => self.equal(unsafe { **r }),
+            (ExpandedObject::Cons(a), ExpandedObject::Cons(b)) => *a == *b,
+            (ExpandedObject::HeapObject(r), _) => other.equal(**r),
+            (_, ExpandedObject::HeapObject(r)) => self.equal(**r),
             (_, _) => self.eql(other),
         }
     }
@@ -125,13 +126,13 @@ impl fmt::Display for ExpandedObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpandedObject::Float(n) => write!(f, "{}", n),
-            ExpandedObject::Reference(r) => write!(f, "{}", r),
-            ExpandedObject::Symbol(s) => write!(f, "{}", *s),
+            ExpandedObject::Reference(ref r) => write!(f, "{}", r),
+            ExpandedObject::Symbol(ref s) => write!(f, "{}", *s),
             ExpandedObject::Immediate(i) => write!(f, "{}", i),
-            ExpandedObject::Cons(c) => write!(f, "{}", unsafe { &*c }),
-            ExpandedObject::Namespace(n) => write!(f, "{}", unsafe { &*n }),
-            ExpandedObject::HeapObject(h) => write!(f, "{}", unsafe { &*h }),
-            ExpandedObject::Function(func) => write!(f, "{}", unsafe { &*func }),
+            ExpandedObject::Cons(ref c) => write!(f, "{}", c),
+            ExpandedObject::Namespace(ref n) => write!(f, "{}", n),
+            ExpandedObject::HeapObject(ref h) => write!(f, "{}", h),
+            ExpandedObject::Function(ref func) => write!(f, "{}", func),
         }
     }
 }
@@ -140,13 +141,13 @@ impl fmt::Debug for ExpandedObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpandedObject::Float(n) => write!(f, "{:?}", n),
-            ExpandedObject::Reference(r) => write!(f, "{:?}", r),
-            ExpandedObject::Symbol(s) => write!(f, "{:?}", *s),
+            ExpandedObject::Reference(ref r) => write!(f, "{:?}", r),
+            ExpandedObject::Symbol(ref s) => write!(f, "{:?}", **s),
             ExpandedObject::Immediate(i) => write!(f, "{:?}", i),
-            ExpandedObject::Cons(c) => write!(f, "{:?}", unsafe { &*c }),
-            ExpandedObject::Namespace(n) => write!(f, "{:?}", unsafe { &*n }),
-            ExpandedObject::HeapObject(h) => write!(f, "{:?}", unsafe { &*h }),
-            ExpandedObject::Function(func) => write!(f, "{:?}", unsafe { &*func }),
+            ExpandedObject::Cons(ref c) => write!(f, "{:?}", *c),
+            ExpandedObject::Namespace(ref n) => write!(f, "{:?}", *n),
+            ExpandedObject::HeapObject(ref h) => write!(f, "{:?}", *h),
+            ExpandedObject::Function(ref func) => write!(f, "{:?}", *func),
         }
     }
 }
@@ -161,19 +162,19 @@ impl convert::From<Object> for ExpandedObject {
     fn from(obj: Object) -> ExpandedObject {
         if f64::is_type(obj) {
             ExpandedObject::Float(unsafe { obj.into_unchecked() })
-        } else if <*mut cons::Cons>::is_type(obj) {
+        } else if <GcRef<Cons>>::is_type(obj) {
             ExpandedObject::Cons(unsafe { obj.into_unchecked() })
-        } else if immediate::Immediate::is_type(obj) {
+        } else if Immediate::is_type(obj) {
             ExpandedObject::Immediate(unsafe { obj.into_unchecked() })
-        } else if <*mut symbol::Symbol>::is_type(obj) {
+        } else if <GcRef<Symbol>>::is_type(obj) {
             ExpandedObject::Symbol(unsafe { obj.into_unchecked() })
-        } else if reference::Reference::is_type(obj) {
+        } else if Reference::is_type(obj) {
             ExpandedObject::Reference(unsafe { obj.into_unchecked() })
-        } else if <*mut namespace::Namespace>::is_type(obj) {
+        } else if <GcRef<Namespace>>::is_type(obj) {
             ExpandedObject::Namespace(unsafe { obj.into_unchecked() })
-        } else if <*mut heap_object::HeapObject>::is_type(obj) {
+        } else if <GcRef<HeapObject>>::is_type(obj) {
             ExpandedObject::HeapObject(unsafe { obj.into_unchecked() })
-        } else if <*mut function::Function>::is_type(obj) {
+        } else if <GcRef<Function>>::is_type(obj) {
             ExpandedObject::Function(unsafe { obj.into_unchecked() })
         } else {
             unreachable!()
@@ -195,11 +196,11 @@ impl convert::From<Object> for bool {
 /// `u64`.
 pub enum ExpandedObject {
     Float(f64),
-    Immediate(immediate::Immediate),
-    Reference(reference::Reference),
-    Symbol(symbol::SymRef),
-    Cons(*mut cons::Cons),
-    Namespace(*mut namespace::Namespace),
-    HeapObject(*mut heap_object::HeapObject),
-    Function(*mut function::Function),
+    Immediate(Immediate),
+    Reference(Reference),
+    Symbol(GcRef<Symbol>),
+    Cons(GcRef<Cons>),
+    Namespace(GcRef<Namespace>),
+    HeapObject(GcRef<HeapObject>),
+    Function(GcRef<Function>),
 }

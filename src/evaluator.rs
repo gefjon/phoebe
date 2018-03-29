@@ -96,12 +96,12 @@ impl Evaluate for ExpandedObject {
         Ok(match *self {
             ExpandedObject::Float(n) => Object::from(n),
             ExpandedObject::Immediate(i) => Object::from(i),
-            ExpandedObject::Reference(r) => *r,
+            ExpandedObject::Reference(ref r) => **r,
             ExpandedObject::Symbol(s) => *(lookup_symbol(s)?),
             ExpandedObject::Function(f) => Object::from(f),
-            ExpandedObject::Cons(c) => unsafe { &*c }.evaluate()?,
+            ExpandedObject::Cons(c) => c.evaluate()?,
             ExpandedObject::Namespace(n) => Object::from(n),
-            ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).evaluate()?,
+            ExpandedObject::HeapObject(h) => (**h).evaluate()?,
         })
     }
     fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
@@ -110,10 +110,10 @@ impl Evaluate for ExpandedObject {
             | ExpandedObject::Immediate(_)
             | ExpandedObject::Function(_)
             | ExpandedObject::Namespace(_) => Err(EvaluatorError::CannotBeReferenced),
-            ExpandedObject::Reference(r) => Ok(r),
+            ExpandedObject::Reference(ref r) => Ok(*r),
             ExpandedObject::Symbol(s) => Ok(lookup_symbol(s)?),
-            ExpandedObject::Cons(c) => unsafe { &*c }.eval_to_reference(),
-            ExpandedObject::HeapObject(h) => (*(unsafe { &*h })).eval_to_reference(),
+            ExpandedObject::Cons(c) => c.eval_to_reference(),
+            ExpandedObject::HeapObject(h) => (**h).eval_to_reference(),
         }
     }
 }

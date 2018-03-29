@@ -1,17 +1,13 @@
-use evaluator::{self, Evaluate, EvaluatorError};
-use gc::{GarbageCollected, GcMark};
+use prelude::*;
 use stack::StackUnderflowError;
 use std::{convert, fmt};
-use symbol_lookup;
-use types::conversions::*;
-use types::namespace::NamespaceRef;
+use types::ConversionError;
 use types::pointer_tagging::{ObjectTag, PointerTag};
-use types::{cons, list, namespace, reference, symbol, Object};
 
 lazy_static! {
-    static ref FUNCTION_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"function") };
-    pub static ref OPTIONAL: symbol::SymRef = { ::symbol_lookup::make_symbol(b"&optional") };
-    pub static ref REST: symbol::SymRef = { ::symbol_lookup::make_symbol(b"&rest") };
+    static ref FUNCTION_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"function") };
+    pub static ref OPTIONAL: GcRef<Symbol> = { symbol_lookup::make_symbol(b"&optional") };
+    pub static ref REST: GcRef<Symbol> = { symbol_lookup::make_symbol(b"&rest") };
 }
 
 enum ArgType {
@@ -21,10 +17,10 @@ enum ArgType {
 }
 
 impl Function {
-    fn count_stack_frame_length(arglist: list::List) -> Result<usize, ConversionError> {
+    fn count_stack_frame_length(arglist: List) -> Result<usize, ConversionError> {
         let mut ct = 0;
         for arg in arglist {
-            let s = symbol::SymRef::try_from(arg)?;
+            let s = <GcRef<Symbol>>::try_from(arg)?;
             if !(s == *REST || s == *OPTIONAL) {
                 ct += 1;
             }
@@ -32,9 +28,9 @@ impl Function {
         Ok(ct)
     }
     pub fn make_lambda(
-        arglist: list::List,
-        body: list::List,
-        env: NamespaceRef,
+        arglist: List,
+        body: List,
+        env: GcRef<Namespace>,
     ) -> Result<Function, ConversionError> {
         Ok(Function {
             gc_marking: GcMark::default(),
@@ -46,10 +42,10 @@ impl Function {
         })
     }
     pub fn make_special_form(
-        name: symbol::SymRef,
-        arglist: list::List,
+        name: GcRef<Symbol>,
+        arglist: List,
         body: &'static Fn() -> Result<Object, EvaluatorError>,
-        env: NamespaceRef,
+        env: GcRef<Namespace>,
     ) -> Result<Function, ConversionError> {
         Ok(Function {
             gc_marking: GcMark::default(),
@@ -61,10 +57,10 @@ impl Function {
         })
     }
     pub fn make_builtin(
-        name: symbol::SymRef,
-        arglist: list::List,
+        name: GcRef<Symbol>,
+        arglist: List,
         body: &'static Fn() -> Result<Object, EvaluatorError>,
-        env: NamespaceRef,
+        env: GcRef<Namespace>,
     ) -> Result<Function, ConversionError> {
         Ok(Function {
             gc_marking: GcMark::default(),
@@ -75,18 +71,15 @@ impl Function {
             env,
         })
     }
-    pub fn with_name(self, name: symbol::SymRef) -> Function {
+    pub fn with_name(self, name: GcRef<Symbol>) -> Function {
         Function {
             name: Some(name),
             ..self
         }
     }
-    pub fn call_to_reference(
-        &self,
-        args: list::List,
-    ) -> Result<reference::Reference, EvaluatorError> {
+    pub fn call_to_reference(&self, args: List) -> Result<Reference, EvaluatorError> {
         let args = if self.should_evaluate_args() {
-            let mut evaled_args = list::List::nil();
+            let mut evaled_args = List::nil();
             for a in args {
                 evaled_args = evaled_args.push(a.evaluate()?);
             }
@@ -100,12 +93,12 @@ impl Function {
         let second_res = self.end_stack_frame();
 
         let obj = second_res.map_err(EvaluatorError::from).and(res)?;
-        Ok(obj.try_into()?)
+        Ok(Reference::try_from(obj)?)
     }
 
-    pub fn call(&self, args: list::List) -> Result<Object, EvaluatorError> {
+    pub fn call(&self, args: List) -> Result<Object, EvaluatorError> {
         let args = if self.should_evaluate_args() {
-            let mut evaled_args = list::List::nil();
+            let mut evaled_args = List::nil();
             for a in args {
                 evaled_args = evaled_args.push(a.evaluate()?);
             }
@@ -117,7 +110,7 @@ impl Function {
         let env = self.build_env(args)?;
         let res = symbol_lookup::with_env(env, || {
             self.body.evaluate().map(|o| {
-                if let Some(r) = reference::Reference::maybe_from(o) {
+                if let Some(r) = Reference::maybe_from(o) {
                     *r
                 } else {
                     o
@@ -135,7 +128,7 @@ impl Function {
             true
         }
     }
-    fn build_env(&self, mut args: list::List) -> Result<NamespaceRef, EvaluatorError> {
+    fn build_env(&self, mut args: List) -> Result<GcRef<Namespace>, EvaluatorError> {
         use stack::{end_stack_frame, push, ref_top};
 
         let mut arg_type = ArgType::Mandatory;
@@ -144,7 +137,7 @@ impl Function {
         let mut symbol_lookup_buf = Vec::new();
 
         for arg in self.arglist {
-            let arg_sym: symbol::SymRef = arg.maybe_into().unwrap();
+            let arg_sym: GcRef<Symbol> = arg.maybe_into().unwrap();
             if arg_sym == *OPTIONAL {
                 arg_type = ArgType::Optional;
                 continue;
@@ -188,17 +181,14 @@ impl Function {
                     } else {
                         n_args += args.count();
                         stack_frame_length += 1;
-                        args = list::List::nil();
+                        args = List::nil();
                     }
                 }
             }
 
             symbol_lookup_buf.push((arg_sym, ref_top()));
         }
-        Ok(namespace::Namespace::create_stack_env(
-            &symbol_lookup_buf,
-            self.env,
-        ))
+        Ok(Namespace::create_stack_env(&symbol_lookup_buf, self.env))
     }
     fn end_stack_frame(&self) -> Result<(), StackUnderflowError> {
         use stack::end_stack_frame;
@@ -209,37 +199,31 @@ impl Function {
 
 pub struct Function {
     gc_marking: GcMark,
-    name: Option<symbol::SymRef>,
-    arglist: list::List,
+    name: Option<GcRef<Symbol>>,
+    arglist: List,
     body: FunctionBody,
     stack_frame_length: usize,
-    env: NamespaceRef,
+    env: GcRef<Namespace>,
 }
 
 enum FunctionBody {
-    Source(list::List),
-    Builtin(&'static Fn() -> Result<Object, evaluator::EvaluatorError>),
-    SpecialForm(&'static Fn() -> Result<Object, evaluator::EvaluatorError>),
+    Source(List),
+    Builtin(&'static Fn() -> Result<Object, EvaluatorError>),
+    SpecialForm(&'static Fn() -> Result<Object, EvaluatorError>),
 }
 
 impl fmt::Display for FunctionBody {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            FunctionBody::Source(l) => write!(f, "{}", l),
+            FunctionBody::Source(ref l) => write!(f, "{}", l),
             FunctionBody::Builtin(_) => write!(f, "COMPILED BUILTIN"),
             FunctionBody::SpecialForm(_) => write!(f, "SPECIAL FORM"),
         }
     }
 }
 
-impl evaluator::Evaluate for Function {
-    fn evaluate(&self) -> Result<Object, evaluator::EvaluatorError> {
-        Ok(Object::from(self as *const Function as *mut Function))
-    }
-}
-
-impl evaluator::Evaluate for FunctionBody {
-    fn evaluate(&self) -> Result<Object, evaluator::EvaluatorError> {
+impl Evaluate for FunctionBody {
+    fn evaluate(&self) -> Result<Object, EvaluatorError> {
         match *self {
             FunctionBody::Source(l) => {
                 let mut res = Object::nil();
@@ -254,53 +238,59 @@ impl evaluator::Evaluate for FunctionBody {
 }
 
 impl GarbageCollected for Function {
+    type ConvertFrom = Function;
+    fn alloc_one_and_initialize(o: Self) -> ::std::ptr::NonNull<Self> {
+        use std::heap::{Alloc, Heap};
+        use std::ptr;
+        let nn = Heap.alloc_one().unwrap();
+        let p = nn.as_ptr();
+        unsafe { ptr::write(p, o) };
+        nn
+    }
     fn my_marking(&self) -> &GcMark {
         &self.gc_marking
     }
-    fn my_marking_mut(&mut self) -> &mut GcMark {
-        &mut self.gc_marking
-    }
-    fn gc_mark_children(&mut self, mark: GcMark) {
+    fn gc_mark_children(&mut self, mark: usize) {
         if let Some(symref) = self.name {
             symref.gc_mark(mark);
         }
-        if let Some(c) = <&mut cons::Cons>::maybe_from(self.arglist) {
+        if let Some(c) = <GcRef<Cons>>::maybe_from(self.arglist) {
             c.gc_mark(mark);
         }
         if let FunctionBody::Source(b) = self.body {
-            if let Some(c) = <&mut cons::Cons>::maybe_from(b) {
+            if let Some(c) = <GcRef<Cons>>::maybe_from(b) {
                 c.gc_mark(mark);
             }
         }
     }
 }
 
-impl FromUnchecked<Object> for *mut Function {
-    unsafe fn from_unchecked(o: Object) -> *mut Function {
-        debug_assert!(<*mut Function>::is_type(o));
-        <*mut Function>::associated_tag().untag(o.0) as *mut Function
+impl FromUnchecked<Object> for GcRef<Function> {
+    unsafe fn from_unchecked(o: Object) -> Self {
+        debug_assert!(Self::is_type(o));
+        GcRef::from_ptr(Self::associated_tag().untag(o.0) as *mut Function)
     }
 }
 
-impl FromObject for *mut Function {
+impl FromObject for GcRef<Function> {
     type Tag = ObjectTag;
     fn associated_tag() -> ObjectTag {
         ObjectTag::Function
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *FUNCTION_TYPE_NAME
     }
 }
 
-impl convert::From<*mut Function> for Object {
-    fn from(f: *mut Function) -> Object {
-        Object(ObjectTag::Function.tag(f as u64))
+impl convert::From<GcRef<Function>> for Object {
+    fn from(f: GcRef<Function>) -> Object {
+        Object::from_raw(ObjectTag::Function.tag(f.into_ptr() as u64))
     }
 }
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(s) = self.name {
+        if let Some(ref s) = self.name {
             write!(f, "[function {}]", s)
         } else {
             write!(f, "[function ANONYMOUS]")
@@ -310,7 +300,7 @@ impl fmt::Display for Function {
 
 impl fmt::Debug for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(s) = self.name {
+        if let Some(ref s) = self.name {
             write!(f, "[function {} {} -> {}]", s, self.arglist, self.body)
         } else {
             write!(f, "(lambda {} {})", self.arglist, self.body)

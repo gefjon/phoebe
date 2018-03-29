@@ -1,18 +1,21 @@
-use gc::{GarbageCollected, GcMark};
+use prelude::*;
 use std::{convert, fmt, ops};
-use types::conversions::*;
 use types::pointer_tagging::{ObjectTag, PointerTag};
-use types::{reference, symbol, Object};
 
 lazy_static! {
-    static ref HEAP_OBJECT_TYPE_NAME: symbol::SymRef =
-        { ::symbol_lookup::make_symbol(b"heap-object") };
+    static ref HEAP_OBJECT_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"heap-object") };
 }
 
-#[derive(Clone, PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct HeapObject {
     gc_marking: GcMark,
     pub val: Object,
+}
+
+impl Clone for HeapObject {
+    fn clone(&self) -> HeapObject {
+        HeapObject::around(self.val)
+    }
 }
 
 impl HeapObject {
@@ -44,42 +47,48 @@ impl ops::DerefMut for HeapObject {
 }
 
 impl GarbageCollected for HeapObject {
+    type ConvertFrom = HeapObject;
+    fn alloc_one_and_initialize(h: HeapObject) -> ::std::ptr::NonNull<HeapObject> {
+        use std::heap::{Alloc, Heap};
+        use std::ptr;
+        let nn = Heap.alloc_one().unwrap();
+        let p = nn.as_ptr();
+        unsafe { ptr::write(p, h) };
+        nn
+    }
     fn my_marking(&self) -> &GcMark {
         &self.gc_marking
     }
-    fn my_marking_mut(&mut self) -> &mut GcMark {
-        &mut self.gc_marking
-    }
-    fn gc_mark_children(&mut self, mark: GcMark) {
+    fn gc_mark_children(&mut self, mark: usize) {
         self.val.gc_mark(mark)
     }
 }
 
-impl<'any> convert::From<&'any mut HeapObject> for reference::Reference {
-    fn from(h: &mut HeapObject) -> reference::Reference {
-        reference::Reference::from(&mut h.val)
+impl convert::From<GcRef<HeapObject>> for Reference {
+    fn from(mut h: GcRef<HeapObject>) -> Reference {
+        Reference::from(&mut h.val)
     }
 }
 
-impl convert::From<*mut HeapObject> for Object {
-    fn from(o: *mut HeapObject) -> Object {
-        Object(ObjectTag::HeapObject.tag(o as u64))
+impl convert::From<GcRef<HeapObject>> for Object {
+    fn from(o: GcRef<HeapObject>) -> Object {
+        Object::from_raw(ObjectTag::HeapObject.tag(o.into_ptr() as u64))
     }
 }
 
-impl FromUnchecked<Object> for *mut HeapObject {
-    unsafe fn from_unchecked(obj: Object) -> *mut HeapObject {
-        debug_assert!(<*mut HeapObject>::is_type(obj));
-        <*mut HeapObject>::associated_tag().untag(obj.0) as *mut HeapObject
+impl FromUnchecked<Object> for GcRef<HeapObject> {
+    unsafe fn from_unchecked(obj: Object) -> Self {
+        debug_assert!(Self::is_type(obj));
+        GcRef::from_ptr(Self::associated_tag().untag(obj.0) as *mut HeapObject)
     }
 }
 
-impl FromObject for *mut HeapObject {
+impl FromObject for GcRef<HeapObject> {
     type Tag = ObjectTag;
     fn associated_tag() -> ObjectTag {
         ObjectTag::HeapObject
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *HEAP_OBJECT_TYPE_NAME
     }
 }

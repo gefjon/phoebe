@@ -1,24 +1,22 @@
-use allocate::Allocate;
+use prelude::*;
 use std::{cmp, convert, fmt, iter, mem};
-use types::cons::Cons;
-use types::conversions::*;
-use types::{pointer_tagging, symbol, Object};
+use types::pointer_tagging;
 
 lazy_static! {
-    static ref LIST_TYPE_NAME: symbol::SymRef = { ::symbol_lookup::make_symbol(b"list") };
+    static ref LIST_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"list") };
 }
 
 #[derive(Copy, Clone)]
 pub enum List {
     Nil,
-    Cons(*mut Cons),
+    Cons(GcRef<Cons>),
 }
 
 impl cmp::PartialEq for List {
     fn eq(&self, other: &List) -> bool {
         let mut first = *self;
         let mut second = *other;
-        for (lhs, rhs) in first.zip(&mut second) {
+        for (lhs, rhs) in (&mut first).zip(&mut second) {
             if !lhs.equal(rhs) {
                 return false;
             }
@@ -29,7 +27,7 @@ impl cmp::PartialEq for List {
 
 impl fmt::Display for List {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(c) = <&Cons>::maybe_from(*self) {
+        if let Some(c) = <GcRef<Cons>>::maybe_from(*self) {
             write!(f, "{}", c)
         } else {
             write!(f, "()")
@@ -39,7 +37,7 @@ impl fmt::Display for List {
 
 impl fmt::Debug for List {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(c) = <&Cons>::maybe_from(*self) {
+        if let Some(c) = <GcRef<Cons>>::maybe_from(*self) {
             write!(f, "{:?}", c)
         } else {
             write!(f, "()")
@@ -60,7 +58,6 @@ impl List {
         for el in self {
             new_list = new_list.push(el);
         }
-        debug!("reversed {} into {}", self, new_list);
         new_list
     }
     pub unsafe fn nreverse(mut self) -> List {
@@ -71,7 +68,8 @@ impl List {
                     return List::from_unchecked(prev);
                 }
                 List::Cons(c) => {
-                    let &mut Cons { ref mut cdr, .. } = &mut *c;
+                    let mut copy = c;
+                    let &mut Cons { ref mut cdr, .. } = copy.as_mut();
                     let next = mem::replace(cdr, prev);
                     prev = Object::from(c);
                     self = List::from_unchecked(next);
@@ -85,7 +83,7 @@ impl List {
     {
         let mut head = Object::nil();
         for el in iter {
-            head = Cons::allocate(Cons::new(el, head));
+            head = Object::from(Cons::allocate(Cons::new(el, head)));
         }
         unsafe { List::from_unchecked(head) }
     }
@@ -116,16 +114,48 @@ impl iter::Iterator for List {
         match *self {
             List::Nil => None,
             List::Cons(c) => {
-                let &Cons { car, cdr, .. } = unsafe { &*c };
+                let Cons { car, cdr, .. } = *c;
                 let new: List = if cdr.nilp() {
                     List::Nil
                 } else {
-                    List::Cons(unsafe { <*mut Cons>::from_unchecked(cdr) })
+                    List::Cons(unsafe { cdr.into_unchecked() })
                 };
                 *self = new;
                 Some(car)
             }
         }
+    }
+}
+
+impl MaybeFrom<GcRef<Cons>> for List {
+    fn maybe_from(c: GcRef<Cons>) -> Option<List> {
+        let Cons { cdr, .. } = *c;
+
+        let mut cur = cdr;
+        loop {
+            if let Some(c) = GcRef::<Cons>::maybe_from(cur) {
+                let Cons { cdr, .. } = *c;
+                cur = cdr;
+            } else if cur.nilp() {
+                break;
+            } else {
+                return None;
+            }
+        }
+        Some(List::Cons(c))
+    }
+    fn try_from(c: GcRef<Cons>) -> Result<List, ConversionError> {
+        if let Some(l) = List::maybe_from(c) {
+            Ok(l)
+        } else {
+            Err(ConversionError::wanted(List::type_name()))
+        }
+    }
+}
+
+impl FromUnchecked<GcRef<Cons>> for List {
+    unsafe fn from_unchecked(c: GcRef<Cons>) -> List {
+        List::Cons(c)
     }
 }
 
@@ -136,7 +166,8 @@ impl MaybeFrom<Object> for List {
         } else {
             let mut cur = obj;
             loop {
-                if let Some(&Cons { cdr, .. }) = <&Cons>::maybe_from(cur) {
+                if let Some(r) = GcRef::<Cons>::maybe_from(cur) {
+                    let Cons { cdr, .. } = *r;
                     cur = cdr;
                 } else if cur.nilp() {
                     break;
@@ -144,7 +175,14 @@ impl MaybeFrom<Object> for List {
                     return None;
                 }
             }
-            Some(List::Cons(unsafe { <*mut Cons>::from_unchecked(obj) }))
+            Some(List::Cons(unsafe { GcRef::from_unchecked(obj) }))
+        }
+    }
+    fn try_from(obj: Object) -> Result<List, ConversionError> {
+        if let Some(t) = List::maybe_from(obj) {
+            Ok(t)
+        } else {
+            Err(ConversionError::wanted(List::type_name()))
         }
     }
 }
@@ -154,7 +192,7 @@ impl FromUnchecked<Object> for List {
         if obj.nilp() {
             List::Nil
         } else {
-            List::Cons(<*mut Cons>::from_unchecked(obj))
+            List::Cons(GcRef::from_unchecked(obj))
         }
     }
 }
@@ -164,39 +202,24 @@ impl FromObject for List {
     fn associated_tag() -> pointer_tagging::ObjectTag {
         pointer_tagging::ObjectTag::Cons
     }
-    fn type_name() -> symbol::SymRef {
+    fn type_name() -> GcRef<Symbol> {
         *LIST_TYPE_NAME
     }
 }
 
-impl MaybeFrom<List> for *mut Cons {
-    fn maybe_from(l: List) -> Option<*mut Cons> {
+impl MaybeFrom<List> for GcRef<Cons> {
+    fn maybe_from(l: List) -> Option<GcRef<Cons>> {
         if let List::Cons(c) = l {
             Some(c)
         } else {
             None
         }
     }
-}
-
-impl<'any> MaybeFrom<List> for &'any mut Cons {
-    fn maybe_from(l: List) -> Option<&'any mut Cons> {
-        <*mut Cons>::maybe_from(l).map(|r| unsafe { &mut *r })
-    }
-}
-
-impl MaybeFrom<List> for *const Cons {
-    fn maybe_from(l: List) -> Option<*const Cons> {
-        if let List::Cons(c) = l {
-            Some(c as *const Cons)
+    fn try_from(obj: List) -> Result<GcRef<Cons>, ConversionError> {
+        if let Some(t) = <GcRef<Cons>>::maybe_from(obj) {
+            Ok(t)
         } else {
-            None
+            Err(ConversionError::wanted(<GcRef<Cons>>::type_name()))
         }
-    }
-}
-
-impl<'any> MaybeFrom<List> for &'any Cons {
-    fn maybe_from(l: List) -> Option<&'any Cons> {
-        <*const Cons>::maybe_from(l).map(|r| unsafe { &*r })
     }
 }

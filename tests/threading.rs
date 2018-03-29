@@ -1,4 +1,5 @@
 extern crate phoebe;
+use std::thread;
 
 fn test_input_output_pairs(pairs: &[(&[u8], &[u8])]) {
     use phoebe::repl::{initialize, read_eval_print_loop};
@@ -29,15 +30,21 @@ fn test_input_output_pairs(pairs: &[(&[u8], &[u8])]) {
 }
 
 #[test]
-fn define_and_call_a_closure() {
-    test_input_output_pairs(&[
-        (b"(defvar x 5)", b"5\n"),
-        (b"(defun returns-five () x)", b"[function returns-five]\n"),
-        (
-            b"(let ((x 3)) (defun returns-three () x))",
-            b"[function returns-three]\n",
-        ),
-        (b"(returns-five)", b"5\n"),
-        (b"(returns-three)", b"3\n"),
-    ]);
+fn do_two_things_in_different_threads() {
+    let first_child = thread::spawn(move || {
+        test_input_output_pairs(&[
+            (b"(defvar x 5)", b"5\n"),
+            (b"(defun return-x () x)", b"[function return-x]\n"),
+            (b"(list (return-x) x)", b"(5 5)\n"),
+        ]);
+    });
+    let second_child = thread::spawn(move || {
+        test_input_output_pairs(&[
+            (b"(defvar y 2)", b"2\n"),
+            (b"(defun return-y () y)", b"[function return-y]\n"),
+            (b"(list (return-y) y)", b"(2 2)\n"),
+        ]);
+    });
+    first_child.join().expect("Thread first_child paniced!");
+    second_child.join().expect("Thread second_child paniced!");
 }

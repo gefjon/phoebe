@@ -1,23 +1,28 @@
-use evaluator::{Evaluate, EvaluatorError};
-use symbol_lookup;
-use types::Object;
-use types::cons::Cons;
-use types::conversions::*;
-use types::list::List;
-use types::namespace::Namespace;
-use types::symbol::SymRef;
+use prelude::*;
+use std::{thread, sync::atomic::{AtomicBool, Ordering}, time::Duration};
 
 #[macro_use]
 mod macros;
 
+pub static STARTED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
+pub static FINISHED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
+
 pub fn make_builtins() {
+    if STARTED_SOURCING_BUILTINS.swap(true, Ordering::AcqRel) {
+        while !FINISHED_SOURCING_BUILTINS.load(Ordering::Acquire) {
+            thread::sleep(Duration::from_millis(10));
+        }
+        return;
+    }
     info!("Making builtins.");
     special_forms! {
         "cond" (&rest clauses) -> {
             for clause in List::try_from(*clauses)? {
-                let &Cons { car, cdr, .. } = clause.try_into()?;
+                let c: GcRef<Cons> = clause.try_into()?;
+                let Cons { car, cdr, .. } = *c;
                 if bool::from(car.evaluate()?) {
-                    let &Cons { car: cdrcar, cdr: tail, .. } = cdr.try_into()?;
+                    let c: GcRef<Cons> = cdr.try_into()?;
+                    let Cons { car: cdrcar, cdr: tail, .. } = *c;
                     if !tail.nilp() {
                         return Err(EvaluatorError::ImproperList);
                     }
@@ -29,13 +34,15 @@ pub fn make_builtins() {
         "let" (bindings &rest body) -> {
             let mut scope = Vec::new();
             for binding_pair in List::try_from(*bindings)? {
-                let &Cons { car: symbol, cdr, .. } = binding_pair.try_into()?;
-                let &Cons { car: value, cdr: tail, .. } = cdr.try_into()?;
+                let c: GcRef<Cons> = binding_pair.try_into()?;
+                let Cons { car: symbol, cdr, .. } = *c;
+                let c: GcRef<Cons> = cdr.try_into()?;
+                let Cons { car: value, cdr: tail, .. } = *c;
                 if !tail.nilp() {
                     return Err(EvaluatorError::ImproperList);
                 }
                 scope.push((
-                    SymRef::try_from(symbol)?,
+                    <GcRef<Symbol>>::try_from(symbol)?,
                     value.evaluate()?
                 ));
             }
@@ -53,16 +60,16 @@ pub fn make_builtins() {
             })
         };
         "lambda" (arglist &rest body) -> {
-            Ok(Function::allocate(
+            Ok(Object::from(Function::allocate(
                 Function::make_lambda(
                     (*arglist).try_into()?,
                     (*body).try_into()?,
                     symbol_lookup::scope_for_a_new_function()
                 )?
-            ))
+            )))
         };
         "defvar" (name &optional value) -> {
-            let sym = SymRef::try_from(*name)?;
+            let sym = <GcRef<Symbol>>::try_from(*name)?;
             let mut place = symbol_lookup::make_from_global_namespace(sym);
             if place.definedp() {
                 Ok(Object::from(place))
@@ -77,18 +84,18 @@ pub fn make_builtins() {
             }
         };
         "boundp" (symbol) -> {
-            let sym = SymRef::try_from(*symbol)?;
+            let sym = <GcRef<Symbol>>::try_from(*symbol)?;
             Ok(symbol_lookup::get_from_global_namespace(sym).is_some().into())
         };
         "defun" (name arglist &rest body) -> {
             let name = (*name).try_into()?;
-            let func = Function::allocate(
+            let func = Object::from(Function::allocate(
                 Function::make_lambda(
                     (*arglist).try_into()?,
                     (*body).try_into()?,
                     symbol_lookup::scope_for_a_new_function()
                 )?.with_name(name)
-            );
+            ));
             *(symbol_lookup::make_from_global_namespace(name)) = func;
             Ok(func)
         };
@@ -97,6 +104,9 @@ pub fn make_builtins() {
             let value = Evaluate::evaluate(&*value)?;
             *place = value;
             Ok(value)
+        };
+        "quote" (x) -> {
+            Ok(*x)
         };
     };
 
@@ -109,5 +119,7 @@ pub fn make_builtins() {
             Ok(*obj)
         };
     };
+
+    FINISHED_SOURCING_BUILTINS.store(true, Ordering::Release);
     info!("Finished making builtin functions.");
 }
