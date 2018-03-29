@@ -73,6 +73,69 @@ where
     }
 }
 
+pub mod test_utilities {
+    use super::*;
+    use std::{convert, string};
+
+    #[derive(Fail, Debug)]
+    pub enum TestIOPairsError {
+        #[fail(display = "Phoebe errored internally: {}", _0)]
+        InternalError(String),
+        #[fail(display = "Expected {} to yeild  {} but found {}", input, expected, found)]
+        WrongOutput {
+            input: String,
+            found: String,
+            expected: String,
+        },
+        #[fail(display = "Error converting output to utf-8: {}", _0)]
+        StringUtf8Error(string::FromUtf8Error),
+    }
+
+    impl convert::From<string::FromUtf8Error> for TestIOPairsError {
+        fn from(e: string::FromUtf8Error) -> TestIOPairsError {
+            TestIOPairsError::StringUtf8Error(e)
+        }
+    }
+
+    pub fn test_input_output_pairs(pairs: &[(&str, &str)]) -> Result<(), TestIOPairsError> {
+        initialize();
+
+        for &(input, output) in pairs {
+            let mut input_buf: &[u8] = input.as_bytes();
+            let mut output_buf = Vec::with_capacity(output.len());
+            let mut error_buf = Vec::new();
+
+            read_eval_print_loop(&mut input_buf, &mut output_buf, &mut error_buf, false).unwrap();
+
+            if !error_buf.is_empty() {
+                return Err(TestIOPairsError::InternalError(String::from_utf8(
+                    error_buf,
+                )?));
+            }
+            if !(output_buf == output.as_bytes()) {
+                return Err(TestIOPairsError::WrongOutput {
+                    input: String::from(input),
+                    found: String::from_utf8(output_buf)?,
+                    expected: String::from(output),
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    #[macro_export]
+    macro_rules! test_pairs {
+        ($($inp:expr => $out:expr);+ $(;)*) => {{
+            if let Err(e) = test_input_output_pairs(&[
+                $(($inp, concat!($out, "\n")),)+
+            ]) {
+                panic!("{}", e);
+            }
+        }};
+    }
+}
+
 fn prompt<O>(output: &mut O) -> Result<(), ReplError>
 where
     O: Write,

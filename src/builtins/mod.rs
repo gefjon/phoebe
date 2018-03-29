@@ -17,37 +17,47 @@ pub fn make_builtins() {
     info!("Making builtins.");
     special_forms! {
         "cond" (&rest clauses) -> {
-            for clause in List::try_from(*clauses)? {
-                let c: GcRef<Cons> = clause.try_into()?;
-                let Cons { car, cdr, .. } = *c;
-                if bool::from(car.evaluate()?) {
-                    let c: GcRef<Cons> = cdr.try_into()?;
-                    let Cons { car: cdrcar, cdr: tail, .. } = *c;
-                    if !tail.nilp() {
-                        return Err(EvaluatorError::ImproperList);
+            symbol_lookup::in_parent_env(|| {
+                for clause in List::try_from(*clauses)? {
+                    let c: GcRef<Cons> = clause.try_into()?;
+                    let Cons { car, cdr, .. } = *c;
+                    if bool::from(car.evaluate()?) {
+                        let c: GcRef<Cons> = cdr.try_into()?;
+                        let Cons { car: cdrcar, cdr: tail, .. } = *c;
+                        if !tail.nilp() {
+                            return Err(EvaluatorError::ImproperList);
+                        }
+                        return cdrcar.evaluate();
                     }
-                    return cdrcar.evaluate();
                 }
-            }
-            Ok(Object::nil())
+                Ok(Object::nil())
+            })
         };
         "let" (bindings &rest body) -> {
-            let mut scope = Vec::new();
-            for binding_pair in List::try_from(*bindings)? {
-                let c: GcRef<Cons> = binding_pair.try_into()?;
-                let Cons { car: symbol, cdr, .. } = *c;
-                let c: GcRef<Cons> = cdr.try_into()?;
-                let Cons { car: value, cdr: tail, .. } = *c;
-                if !tail.nilp() {
-                    return Err(EvaluatorError::ImproperList);
-                }
-                scope.push((
-                    <GcRef<Symbol>>::try_from(symbol)?,
-                    value.evaluate()?
-                ));
-            }
+            let env = {
+                let mut scope = Vec::new();
+
+                symbol_lookup::in_parent_env(|| {
+                    for binding_pair in List::try_from(*bindings)? {
+                        let c: GcRef<Cons> = binding_pair.try_into()?;
+                        let Cons { car: symbol, cdr, .. } = *c;
+                        let c: GcRef<Cons> = cdr.try_into()?;
+                        let Cons { car: value, cdr: tail, .. } = *c;
+                        if !tail.nilp() {
+                            return Err(EvaluatorError::ImproperList);
+                        }
+                        scope.push((
+                            symbol.try_into()?,
+                            value.evaluate()?
+                        ));
+                    }
+                    Ok(())
+                })?;
+
+                Namespace::create_let_env(&scope)
+            };
+
             let body = List::try_from(*body)?;
-            let env = Namespace::create_let_env(&scope);
             symbol_lookup::with_env(env, || {
                 let mut res = Ok(Object::nil());
                 for body_clause in body {
@@ -74,12 +84,15 @@ pub fn make_builtins() {
             if place.definedp() {
                 Ok(Object::from(place))
             } else {
-                let val = if (*value).definedp() {
-                    value.evaluate()?
-                } else {
-                    Object::uninitialized()
-                };
-                *place = val;
+                let value: Object = *value;
+                let value: Object = symbol_lookup::in_parent_env(|| {
+                    if value.definedp() {
+                        value.evaluate()
+                    } else {
+                        Ok(Object::uninitialized())
+                    }
+                })?;
+                *place = value;
                 Ok(Object::from(place))
             }
         };
@@ -101,7 +114,8 @@ pub fn make_builtins() {
         };
         "setf" (place value) -> {
             let mut place = Evaluate::eval_to_reference(&*place)?;
-            let value = Evaluate::evaluate(&*value)?;
+            let value = *value;
+            let value = symbol_lookup::in_parent_env(|| value.evaluate())?;
             *place = value;
             Ok(value)
         };

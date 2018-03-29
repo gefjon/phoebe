@@ -111,6 +111,24 @@ where
     res
 }
 
+pub fn in_parent_env<F, T>(fun: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    let current_env = {
+        ENV_STACK.with(|s| {
+            let mut stack = s.borrow_mut();
+            debug_assert!(stack.len() > 1);
+            stack.pop().unwrap()
+        })
+    };
+    let res = fun();
+    {
+        ENV_STACK.with(|s| s.borrow_mut().push(current_env));
+    }
+    res
+}
+
 /// Create a symbol, by returning a pointer to an existing one with
 /// the same name or by allocating a new one if no such exists. This
 /// is the *only legal way* to create a `Symbol` or a `GcRef<Symbol>`
