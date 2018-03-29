@@ -100,7 +100,7 @@ impl MaybeFrom<Object> for PhoebeNumber {
             None
         }
     }
-    fn try_from(obj: Object) -> Result<PhoebeNumber, ConversionError> {
+    fn try_convert_from(obj: Object) -> Result<PhoebeNumber, ConversionError> {
         if let Some(t) = PhoebeNumber::maybe_from(obj) {
             Ok(t)
         } else {
@@ -135,7 +135,7 @@ impl MaybeFrom<PhoebeNumber> for i32 {
             None
         }
     }
-    fn try_from(obj: PhoebeNumber) -> Result<i32, ConversionError> {
+    fn try_convert_from(obj: PhoebeNumber) -> Result<i32, ConversionError> {
         if let Some(t) = i32::maybe_from(obj) {
             Ok(t)
         } else {

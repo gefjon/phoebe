@@ -36,7 +36,7 @@ impl ConversionError {
 /// convert an `Object` into a type is not an error condition.
 pub trait MaybeFrom<T: Sized>: Sized {
     fn maybe_from(t: T) -> Option<Self>;
-    fn try_from(t: T) -> Result<Self, ConversionError>;
+    fn try_convert_from(t: T) -> Result<Self, ConversionError>;
 }
 
 /// This trait is analogous to `std::convert::From` but marked
@@ -52,7 +52,7 @@ pub trait FromUnchecked<T: Sized>: Sized {
 /// `MaybeFrom` types.
 pub trait MaybeInto<T: Sized>: Sized {
     fn maybe_into(self) -> Option<T>;
-    fn try_into(self) -> Result<T, ConversionError>;
+    fn try_convert_into(self) -> Result<T, ConversionError>;
 }
 
 /// The companion trait to `FromUnchecked` - automatically derived for
@@ -105,7 +105,7 @@ where
             None
         }
     }
-    default fn try_from(obj: Object) -> Result<T, ConversionError> {
+    default fn try_convert_from(obj: Object) -> Result<T, ConversionError> {
         if let Some(t) = T::maybe_from(obj) {
             Ok(t)
         } else {
@@ -130,8 +130,8 @@ where
     fn maybe_into(self) -> Option<T> {
         T::maybe_from(self)
     }
-    fn try_into(self) -> Result<T, ConversionError> {
-        T::try_from(self)
+    fn try_convert_into(self) -> Result<T, ConversionError> {
+        T::try_convert_from(self)
     }
 }
 

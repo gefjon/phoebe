@@ -20,7 +20,7 @@ impl Function {
     fn count_stack_frame_length(arglist: List) -> Result<usize, ConversionError> {
         let mut ct = 0;
         for arg in arglist {
-            let s = <GcRef<Symbol>>::try_from(arg)?;
+            let s = <GcRef<Symbol>>::try_convert_from(arg)?;
             if !(s == *REST || s == *OPTIONAL) {
                 ct += 1;
             }
@@ -93,7 +93,7 @@ impl Function {
         let second_res = self.end_stack_frame();
 
         let obj = second_res.map_err(EvaluatorError::from).and(res)?;
-        Ok(Reference::try_from(obj)?)
+        Ok(Reference::try_convert_from(obj)?)
     }
 
     pub fn call(&self, args: List) -> Result<Object, EvaluatorError> {

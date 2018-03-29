@@ -144,7 +144,7 @@ impl MaybeFrom<GcRef<Cons>> for List {
         }
         Some(List::Cons(c))
     }
-    fn try_from(c: GcRef<Cons>) -> Result<List, ConversionError> {
+    fn try_convert_from(c: GcRef<Cons>) -> Result<List, ConversionError> {
         if let Some(l) = List::maybe_from(c) {
             Ok(l)
         } else {
@@ -178,7 +178,7 @@ impl MaybeFrom<Object> for List {
             Some(List::Cons(unsafe { GcRef::from_unchecked(obj) }))
         }
     }
-    fn try_from(obj: Object) -> Result<List, ConversionError> {
+    fn try_convert_from(obj: Object) -> Result<List, ConversionError> {
         if let Some(t) = List::maybe_from(obj) {
             Ok(t)
         } else {
@@ -215,7 +215,7 @@ impl MaybeFrom<List> for GcRef<Cons> {
             None
         }
     }
-    fn try_from(obj: List) -> Result<GcRef<Cons>, ConversionError> {
+    fn try_convert_from(obj: List) -> Result<GcRef<Cons>, ConversionError> {
         if let Some(t) = <GcRef<Cons>>::maybe_from(obj) {
             Ok(t)
         } else {

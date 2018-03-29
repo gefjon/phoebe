@@ -18,11 +18,11 @@ pub fn make_builtins() {
     special_forms! {
         "cond" (&rest clauses) -> {
             symbol_lookup::in_parent_env(|| {
-                for clause in List::try_from(*clauses)? {
-                    let c: GcRef<Cons> = clause.try_into()?;
+                for clause in List::try_convert_from(*clauses)? {
+                    let c: GcRef<Cons> = clause.try_convert_into()?;
                     let Cons { car, cdr, .. } = *c;
                     if bool::from(car.evaluate()?) {
-                        let c: GcRef<Cons> = cdr.try_into()?;
+                        let c: GcRef<Cons> = cdr.try_convert_into()?;
                         let Cons { car: cdrcar, cdr: tail, .. } = *c;
                         if !tail.nilp() {
                             return Err(EvaluatorError::ImproperList);
@@ -38,16 +38,16 @@ pub fn make_builtins() {
                 let mut scope = Vec::new();
 
                 symbol_lookup::in_parent_env(|| {
-                    for binding_pair in List::try_from(*bindings)? {
-                        let c: GcRef<Cons> = binding_pair.try_into()?;
+                    for binding_pair in List::try_convert_from(*bindings)? {
+                        let c: GcRef<Cons> = binding_pair.try_convert_into()?;
                         let Cons { car: symbol, cdr, .. } = *c;
-                        let c: GcRef<Cons> = cdr.try_into()?;
+                        let c: GcRef<Cons> = cdr.try_convert_into()?;
                         let Cons { car: value, cdr: tail, .. } = *c;
                         if !tail.nilp() {
                             return Err(EvaluatorError::ImproperList);
                         }
                         scope.push((
-                            symbol.try_into()?,
+                            symbol.try_convert_into()?,
                             value.evaluate()?
                         ));
                     }
@@ -57,7 +57,7 @@ pub fn make_builtins() {
                 Namespace::create_let_env(&scope)
             };
 
-            let body = List::try_from(*body)?;
+            let body = List::try_convert_from(*body)?;
             symbol_lookup::with_env(env, || {
                 let mut res = Ok(Object::nil());
                 for body_clause in body {
@@ -72,14 +72,14 @@ pub fn make_builtins() {
         "lambda" (arglist &rest body) -> {
             Ok(Object::from(Function::allocate(
                 Function::make_lambda(
-                    (*arglist).try_into()?,
-                    (*body).try_into()?,
+                    (*arglist).try_convert_into()?,
+                    (*body).try_convert_into()?,
                     symbol_lookup::scope_for_a_new_function()
                 )?
             )))
         };
         "defvar" (name &optional value) -> {
-            let sym = <GcRef<Symbol>>::try_from(*name)?;
+            let sym = <GcRef<Symbol>>::try_convert_from(*name)?;
             let mut place = symbol_lookup::make_from_global_namespace(sym);
             if place.definedp() {
                 Ok(Object::from(place))
@@ -97,15 +97,15 @@ pub fn make_builtins() {
             }
         };
         "boundp" (symbol) -> {
-            let sym = <GcRef<Symbol>>::try_from(*symbol)?;
+            let sym = <GcRef<Symbol>>::try_convert_from(*symbol)?;
             Ok(symbol_lookup::get_from_global_namespace(sym).is_some().into())
         };
         "defun" (name arglist &rest body) -> {
-            let name = (*name).try_into()?;
+            let name = (*name).try_convert_into()?;
             let func = Object::from(Function::allocate(
                 Function::make_lambda(
-                    (*arglist).try_into()?,
-                    (*body).try_into()?,
+                    (*arglist).try_convert_into()?,
+                    (*body).try_convert_into()?,
                     symbol_lookup::scope_for_a_new_function()
                 )?.with_name(name)
             ));
