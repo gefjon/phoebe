@@ -1,5 +1,5 @@
 use prelude::*;
-use std::{cmp, convert};
+use std::{cmp, convert, ops};
 use symbol_lookup::make_symbol;
 use types::pointer_tagging;
 
@@ -31,6 +31,10 @@ fn try_flatten_float(f: f64) -> PhoebeNumber {
 }
 
 impl PhoebeNumber {
+    pub fn recip(self) -> Self {
+        let recip = 1.0 / (f64::from(self));
+        try_flatten_float(recip)
+    }
     pub fn try_flatten(self) -> Self {
         if let PhoebeNumber::Float(f) = self {
             try_flatten_float(f)
@@ -84,6 +88,81 @@ impl cmp::PartialOrd for PhoebeNumber {
             lhs >= rhs
         } else {
             f64::from(*self) >= f64::from(*rhs)
+        }
+    }
+}
+
+impl ops::Add for PhoebeNumber {
+    type Output = Self;
+    fn add(self, other: Self) -> Self {
+        if let (Some(l), Some(r)) = (i32::maybe_from(self), i32::maybe_from(other)) {
+            (l + r).into()
+        } else {
+            (f64::from(self) + f64::from(other)).into()
+        }
+    }
+}
+
+impl ops::AddAssign for PhoebeNumber {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other;
+    }
+}
+
+impl ops::Sub for PhoebeNumber {
+    type Output = Self;
+    fn sub(self, other: Self) -> Self {
+        if let (Some(l), Some(r)) = (i32::maybe_from(self), i32::maybe_from(other)) {
+            (l - r).into()
+        } else {
+            (f64::from(self) - f64::from(other)).into()
+        }
+    }
+}
+
+impl ops::SubAssign for PhoebeNumber {
+    fn sub_assign(&mut self, other: Self) {
+        *self = *self - other;
+    }
+}
+
+impl ops::Mul for PhoebeNumber {
+    type Output = Self;
+    fn mul(self, other: Self) -> Self {
+        if let (Some(l), Some(r)) = (i32::maybe_from(self), i32::maybe_from(other)) {
+            (l * r).into()
+        } else {
+            (f64::from(self) * f64::from(other)).into()
+        }
+    }
+}
+
+impl ops::MulAssign for PhoebeNumber {
+    fn mul_assign(&mut self, other: Self) {
+        *self = *self * other;
+    }
+}
+
+impl ops::Div for PhoebeNumber {
+    type Output = Self;
+    fn div(self, other: Self) -> Self {
+        Self::from(f64::from(self) / f64::from(other)).try_flatten()
+    }
+}
+
+impl ops::DivAssign for PhoebeNumber {
+    fn div_assign(&mut self, other: Self) {
+        *self = *self / other;
+    }
+}
+
+impl ops::Neg for PhoebeNumber {
+    type Output = Self;
+    fn neg(self) -> Self {
+        if let Some(n) = i32::maybe_from(self) {
+            PhoebeNumber::from(-n)
+        } else {
+            PhoebeNumber::from(-(f64::from(self)))
         }
     }
 }
@@ -162,5 +241,15 @@ impl convert::From<f64> for PhoebeNumber {
 impl convert::From<i32> for PhoebeNumber {
     fn from(i: i32) -> PhoebeNumber {
         PhoebeNumber::Integer(i)
+    }
+}
+
+impl convert::From<PhoebeNumber> for Object {
+    fn from(n: PhoebeNumber) -> Object {
+        if let Some(n) = i32::maybe_from(n) {
+            Object::from(n)
+        } else {
+            Object::from(f64::from(n))
+        }
     }
 }

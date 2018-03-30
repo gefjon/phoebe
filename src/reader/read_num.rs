@@ -73,6 +73,11 @@ enum ParseDecimalResult<'a> {
 fn parse_decimal(input: &[u8]) -> ParseDecimalResult {
     debug_assert!(!input.is_empty());
     let (sign, s) = extract_sign(input);
+    if s.is_empty() {
+        // if input is exactly `b"+"` or `b"-"`, `extract_sign` will
+        // succeed and leave `s` empty. `+` and `-` are symbols.
+        return ParseDecimalResult::Symbol(input);
+    }
     let (integral, s) = eat_digits(s);
     match s.first() {
         None => {
@@ -270,6 +275,28 @@ mod test {
                 integral: b"10",
                 fractional: b"",
                 exp: -2,
+            },)
+        );
+
+        let res = parse_decimal(b".5");
+        assert_eq!(
+            res,
+            ParseDecimalResult::Float(DecimalFp {
+                sign: Sign::Positive,
+                integral: b"",
+                fractional: b"5",
+                exp: 0,
+            },)
+        );
+
+        let res = parse_decimal(b"0.1");
+        assert_eq!(
+            res,
+            ParseDecimalResult::Float(DecimalFp {
+                sign: Sign::Positive,
+                integral: b"0",
+                fractional: b"1",
+                exp: 0,
             },)
         );
     }

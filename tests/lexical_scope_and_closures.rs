@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate phoebe;
 
-use phoebe::repl::test_utilities::test_input_output_pairs;
-
 #[test]
 fn define_and_call_a_closure() {
     test_pairs! {

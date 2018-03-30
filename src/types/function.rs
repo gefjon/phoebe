@@ -102,7 +102,7 @@ impl Function {
             for a in args {
                 evaled_args = evaled_args.push(a.evaluate()?);
             }
-            evaled_args
+            evaled_args.reverse()
         } else {
             args
         };
@@ -175,7 +175,7 @@ impl Function {
                     }
                 }
                 ArgType::Rest => {
-                    if let Err(e) = push(Object::from(args.reverse())) {
+                    if let Err(e) = push(Object::from(args)) {
                         end_stack_frame(stack_frame_length)?;
                         return Err(e.into());
                     } else {

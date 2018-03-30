@@ -4,6 +4,8 @@ use std::{thread, sync::atomic::{AtomicBool, Ordering}, time::Duration};
 #[macro_use]
 mod macros;
 
+mod math_builtins;
+
 pub static STARTED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
 pub static FINISHED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
 
@@ -133,6 +135,8 @@ pub fn make_builtins() {
             Ok(*obj)
         };
     };
+
+    math_builtins::make_math_builtins();
 
     FINISHED_SOURCING_BUILTINS.store(true, Ordering::Release);
     info!("Finished making builtin functions.");

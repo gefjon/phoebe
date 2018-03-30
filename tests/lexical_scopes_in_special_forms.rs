@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate phoebe;
 
-use phoebe::repl::test_utilities::test_input_output_pairs;
-
 #[test]
 fn cond_lexical_scoping() {
     test_pairs! {

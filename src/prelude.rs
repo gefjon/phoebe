@@ -8,6 +8,7 @@ pub use types::heap_object::HeapObject;
 pub use types::immediate::Immediate;
 pub use types::list::List;
 pub use types::namespace::Namespace;
+pub use types::number::PhoebeNumber;
 pub use types::reference::Reference;
 pub use types::symbol::Symbol;
 

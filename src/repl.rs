@@ -127,7 +127,7 @@ pub mod test_utilities {
     #[macro_export]
     macro_rules! test_pairs {
         ($($inp:expr => $out:expr);+ $(;)*) => {{
-            if let Err(e) = test_input_output_pairs(&[
+            if let Err(e) = $crate::repl::test_utilities::test_input_output_pairs(&[
                 $(($inp, concat!($out, "\n")),)+
             ]) {
                 panic!("{}", e);
