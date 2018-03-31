@@ -1,4 +1,3 @@
-#![feature(try_convert_from)]
 #![feature(specialization)]
 #![feature(allocator_api)]
 

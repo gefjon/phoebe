@@ -1,3 +1,7 @@
+//! This module exports `make_builtins`, which sources all builtin
+//! functions and special forms. Phoebe is largely useless until that
+//! function is called.
+
 use prelude::*;
 use std::{thread, sync::atomic::{AtomicBool, Ordering}, time::Duration};
 
@@ -6,9 +10,24 @@ mod macros;
 
 mod math_builtins;
 
+/// `true` if any thread has called `make_builtins` yet.
 pub static STARTED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
+
+/// `true` if an instance of `make_builtins` has completed yet.
 pub static FINISHED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
 
+/// Any new thread which could be spawned before or during sourcing
+/// builtins should call this function as its first act. Calling it
+/// multiple times, either concurrently or in series, is safe and only
+/// the first time will result in actual work being done. If another
+/// thread is currently running `make_builtins`, a call to
+/// `make_builtins` will sleep until that thread's call returns, so
+/// any thread which calls `make_builtins` will garuntee that:
+///
+/// * builtins are sourced by the time `make_builtins` returns
+///
+/// * no UB will be caused by trying to do things while another thread
+/// is setting up.
 pub fn make_builtins() {
     if STARTED_SOURCING_BUILTINS.swap(true, Ordering::AcqRel) {
         while !FINISHED_SOURCING_BUILTINS.load(Ordering::Acquire) {

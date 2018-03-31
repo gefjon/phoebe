@@ -40,10 +40,17 @@ where
     read_eval_print_loop(input, output, error, should_prompt)
 }
 
+/// Initializes Phoebe. `repl` calls this, but any threads which
+/// intend to call `read_eval_print_loop` themselves should
+/// `initialize` first.
 pub fn initialize() {
     make_builtins();
 }
 
+/// Repeatedly read, evaluate, and print from `input` into `output`,
+/// signaling any errors into `error`, until `input` is empty. If
+/// `should_prompt`, will print `phoebe> ` before each `read`. This is
+/// called internally by `repl` and is exposed mostly for testing.
 pub fn read_eval_print_loop<I, O, E>(
     input: &mut I,
     output: &mut O,
@@ -125,6 +132,25 @@ pub mod test_utilities {
     }
 
     #[macro_export]
+    /// This macro is used to test that inputs result in expected
+    /// outputs. Usage:
+    ///
+    /// ```rust
+    /// # #[macro_use] extern crate phoebe;
+    /// # fn main() {
+    /// test_pairs! {
+    ///   "(+ 1 2)" => "3";
+    ///   "(* 5 5)" => "25";
+    ///   "(defun 1+ (n) (+ n 1))" => "[function 1+]";
+    ///   "(1+ 3)" => "4";
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// Inputs are run in series in the same thread, but other calls
+    /// to `test_pairs` from other threads will run concurrently, so
+    /// it is best to use unique symbol names based on the name of the
+    /// current test. See the `tests` directory for examples.
     macro_rules! test_pairs {
         ($($inp:expr => $out:expr);+ $(;)*) => {{
             if let Err(e) = $crate::repl::test_utilities::test_input_output_pairs(&[

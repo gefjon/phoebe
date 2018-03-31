@@ -1,6 +1,20 @@
+//! The definition and impls for Phoebe's main internal reference
+//! type, `GcRef`.
+
 use prelude::*;
 use std::{cmp, convert, fmt, hash, ops::{self, Deref}, ptr::NonNull};
 
+/// This type is `Copy`, `Send` and `Sync`, and denotes a reference to
+/// a garbage-collected object. It is very important that any such
+/// objects be `gc_mark`'d during a garbage-collector sweep, or else
+/// these references will dange. It is also important that, other than
+/// their `GcMark`s, these objects are not mutated (soft exceptions
+/// for `Namespace`s and for `unsafe` destructive functions like
+/// `nreverse`
+///
+/// Because `NonNull<T>` is covariant over `T`, a lot of traits which
+/// would be auto-impl'd or derived on a `GcRef(*mut T)` must be
+/// implemented by hand.
 pub struct GcRef<T>(NonNull<T>);
 
 impl<T> cmp::PartialEq for GcRef<T> {
@@ -86,7 +100,11 @@ impl<T> convert::From<NonNull<T>> for GcRef<T> {
     }
 }
 
-impl<T: GarbageCollected> GcRef<T> {
+impl<T> GcRef<T>
+where
+    T: GarbageCollected,
+    Object: convert::From<Self>,
+{
     pub fn should_dealloc(&self, m: usize) -> bool {
         T::should_dealloc(self, m)
     }
@@ -95,7 +113,11 @@ impl<T: GarbageCollected> GcRef<T> {
     }
 }
 
-impl<T: Evaluate> Evaluate for GcRef<T> {
+impl<T> Evaluate for GcRef<T>
+where
+    T: Evaluate,
+    Object: convert::From<Self>,
+{
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
         self.deref().evaluate()
     }

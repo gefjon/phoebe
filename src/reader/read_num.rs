@@ -7,6 +7,11 @@ enum Sign {
     Negative,
 }
 
+/// `libcore` stores a big table of accurate representations of powers
+/// of ten, which gets them improved performance and better estimates
+/// at the cost of memory. I am too lazy to test whether that's worth
+/// or not, or to find some other accurate way of approximating powers
+/// of ten, so this function just does `(10.0f64).powi`.
 fn power_of_ten(e: i16) -> f64 {
     (10.0f64).powi(i32::from(e))
 }
