@@ -1,6 +1,6 @@
 use prelude::*;
 use stack::StackUnderflowError;
-use std::{convert, fmt};
+use std::{convert, fmt, collections::HashMap};
 use types::ConversionError;
 use types::pointer_tagging::{ObjectTag, PointerTag};
 
@@ -8,12 +8,14 @@ lazy_static! {
     static ref FUNCTION_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"function") };
     pub static ref OPTIONAL: GcRef<Symbol> = { symbol_lookup::make_symbol(b"&optional") };
     pub static ref REST: GcRef<Symbol> = { symbol_lookup::make_symbol(b"&rest") };
+    pub static ref KEY: GcRef<Symbol> = { symbol_lookup::make_symbol(b"&key") };
 }
 
 enum ArgType {
     Mandatory,
     Optional,
     Rest,
+    Key,
 }
 
 impl Function {
@@ -21,7 +23,7 @@ impl Function {
         let mut ct = 0;
         for arg in arglist {
             let s = <GcRef<Symbol>>::try_convert_from(arg)?;
-            if !(s == *REST || s == *OPTIONAL) {
+            if !(s == *REST || s == *OPTIONAL || s == *KEY) {
                 ct += 1;
             }
         }
@@ -136,58 +138,114 @@ impl Function {
         let mut stack_frame_length = 0;
         let mut symbol_lookup_buf = Vec::new();
 
-        for arg in self.arglist {
-            let arg_sym: GcRef<Symbol> = arg.maybe_into().unwrap();
-            if arg_sym == *OPTIONAL {
-                arg_type = ArgType::Optional;
-                continue;
-            } else if arg_sym == *REST {
-                arg_type = ArgType::Rest;
-                continue;
-            }
-            match arg_type {
-                ArgType::Mandatory => {
-                    if let Some(o) = args.next() {
+        {
+            let mut iter = self.arglist;
+            'args: while let Some(arg) = iter.next() {
+                let arg_sym: GcRef<Symbol> = arg.maybe_into().unwrap();
+                if arg_sym == *OPTIONAL {
+                    arg_type = ArgType::Optional;
+                    continue;
+                } else if arg_sym == *REST {
+                    arg_type = ArgType::Rest;
+                    continue;
+                } else if arg_sym == *KEY {
+                    arg_type = ArgType::Key;
+                    continue;
+                }
+                match arg_type {
+                    ArgType::Mandatory => {
+                        if let Some(o) = args.next() {
+                            if let Err(e) = push(o) {
+                                end_stack_frame(stack_frame_length)?;
+                                return Err(e.into());
+                            } else {
+                                n_args += 1;
+                                stack_frame_length += 1;
+                            }
+                        } else {
+                            end_stack_frame(stack_frame_length)?;
+                            return Err(EvaluatorError::bad_args_count(self.arglist, n_args));
+                        }
+                        symbol_lookup_buf.push((arg_sym, ref_top()));
+                    }
+                    ArgType::Optional => {
+                        let (o, narg) = if let Some(o) = args.next() {
+                            (o, 1)
+                        } else {
+                            (Object::uninitialized(), 0)
+                        };
                         if let Err(e) = push(o) {
-                            end_stack_frame(n_args)?;
+                            end_stack_frame(stack_frame_length)?;
                             return Err(e.into());
                         } else {
-                            n_args += 1;
+                            n_args += narg;
                             stack_frame_length += 1;
                         }
-                    } else {
-                        end_stack_frame(stack_frame_length)?;
-                        return Err(EvaluatorError::bad_args_count(self.arglist, n_args));
+                        symbol_lookup_buf.push((arg_sym, ref_top()));
                     }
-                }
-                ArgType::Optional => {
-                    let (o, narg) = if let Some(o) = args.next() {
-                        (o, 1)
-                    } else {
-                        (Object::uninitialized(), 0)
-                    };
-                    if let Err(e) = push(o) {
-                        end_stack_frame(stack_frame_length)?;
-                        return Err(e.into());
-                    } else {
-                        n_args += narg;
-                        stack_frame_length += 1;
+                    ArgType::Rest => {
+                        if let Err(e) = push(Object::from(args)) {
+                            end_stack_frame(stack_frame_length)?;
+                            return Err(e.into());
+                        } else {
+                            n_args += args.count();
+                            stack_frame_length += 1;
+                            args = List::nil();
+                        }
+                        symbol_lookup_buf.push((arg_sym, ref_top()));
                     }
-                }
-                ArgType::Rest => {
-                    if let Err(e) = push(Object::from(args)) {
-                        end_stack_frame(stack_frame_length)?;
-                        return Err(e.into());
-                    } else {
-                        n_args += args.count();
+                    ArgType::Key => {
+                        let mut pairs = HashMap::new();
+                        'keys: loop {
+                            let key = if let Some(k) = args.next() {
+                                k
+                            } else {
+                                break 'keys;
+                            };
+                            let key = match key.try_convert_into() {
+                                Ok(k) => k,
+                                Err(e) => {
+                                    end_stack_frame(stack_frame_length)?;
+                                    return Err(e.into());
+                                }
+                            };
+                            let val = if let Some(v) = args.next() {
+                                v
+                            } else {
+                                end_stack_frame(stack_frame_length)?;
+                                return Err(EvaluatorError::UnaccompaniedKey { key });
+                            };
+                            pairs.insert(key, val);
+                        }
+                        let s = arg_sym.with_colon_in_front();
+                        let v = pairs.get(&s).cloned().unwrap_or_else(Object::uninitialized);
+                        debug!("keyword pair {} -> {}", s, v);
+                        if let Err(e) = push(v) {
+                            end_stack_frame(stack_frame_length)?;
+                            return Err(e.into());
+                        }
                         stack_frame_length += 1;
-                        args = List::nil();
+                        symbol_lookup_buf.push((arg_sym, ref_top()));
+
+                        for sym in iter {
+                            debug!("{} is in the arglist while parsing keyword args", sym);
+                            let sym: GcRef<Symbol> = sym.try_convert_into().unwrap();
+                            let s: GcRef<Symbol> = sym.with_colon_in_front();
+                            let v = pairs.get(&s).cloned().unwrap_or_else(Object::uninitialized);
+                            debug!("keyword pair {} -> {}", s, v);
+                            if let Err(e) = push(v) {
+                                end_stack_frame(stack_frame_length)?;
+                                return Err(e.into());
+                            }
+                            stack_frame_length += 1;
+                            symbol_lookup_buf.push((sym, ref_top()));
+                        }
+                        break 'args;
                     }
                 }
             }
-
-            symbol_lookup_buf.push((arg_sym, ref_top()));
         }
+
         Ok(Namespace::create_stack_env(&symbol_lookup_buf, self.env))
     }
     fn end_stack_frame(&self) -> Result<(), StackUnderflowError> {

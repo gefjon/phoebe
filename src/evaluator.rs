@@ -4,12 +4,13 @@
 //! * the trait `Evaluate`
 //! * the enum `EvaluatorError`
 
-use gc::gc_maybe_pass;
+use gc::{gc_maybe_pass, GcRef};
 use stack::{StackOverflowError, StackUnderflowError};
 use std::convert;
-use symbol_lookup::{lookup_symbol, UnboundSymbolError};
+use symbol_lookup::UnboundSymbolError;
 use types::conversions::ConversionError;
 use types::reference::Reference;
+use types::symbol::Symbol;
 use types::{list, ExpandedObject, Object};
 
 #[derive(Fail, Debug)]
@@ -44,6 +45,10 @@ pub enum EvaluatorError {
 
     #[fail(display = "{}", _0)]
     UnboundSymbol(UnboundSymbolError),
+
+    #[fail(display = "The key {} did not have an accompanying symbol when parsing key arguments.",
+           key)]
+    UnaccompaniedKey { key: GcRef<Symbol> },
 }
 
 unsafe impl Sync for EvaluatorError {}
@@ -166,7 +171,7 @@ impl Evaluate for ExpandedObject {
             ExpandedObject::Float(n) => Object::from(n),
             ExpandedObject::Immediate(i) => Object::from(i),
             ExpandedObject::Reference(ref r) => **r,
-            ExpandedObject::Symbol(s) => *(lookup_symbol(s)?),
+            ExpandedObject::Symbol(s) => s.evaluate()?,
             ExpandedObject::Function(f) => Object::from(f),
             ExpandedObject::Cons(c) => c.evaluate()?,
             ExpandedObject::Namespace(n) => Object::from(n),
@@ -184,7 +189,7 @@ impl Evaluate for ExpandedObject {
             | ExpandedObject::Function(_)
             | ExpandedObject::Namespace(_) => Err(EvaluatorError::CannotBeReferenced),
             ExpandedObject::Reference(r) => Ok(r),
-            ExpandedObject::Symbol(s) => Ok(lookup_symbol(s)?),
+            ExpandedObject::Symbol(s) => s.eval_to_reference(),
             ExpandedObject::Cons(c) => c.eval_to_reference(),
             ExpandedObject::HeapObject(h) => (**h).eval_to_reference(),
         }

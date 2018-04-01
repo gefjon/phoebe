@@ -64,6 +64,17 @@ impl GarbageCollected for Symbol {
 }
 
 impl Symbol {
+    pub fn with_colon_in_front(&self) -> GcRef<Symbol> {
+        let mut vec = Vec::with_capacity(self.len() + 1);
+        vec.push(b':');
+        vec.extend_from_slice(self.as_ref());
+        symbol_lookup::make_symbol(&vec)
+    }
+    fn is_self_evaluating(&self) -> bool {
+        // The symbols `:` and `&` are *not* self-evaluating, but any
+        // other symbols which start with `&` or `:` are.
+        (self.len() > 1) && self.as_ref()[0] == b':' || self.as_ref()[0] == b'&'
+    }
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -135,6 +146,24 @@ impl FromUnchecked<Object> for GcRef<Symbol> {
     unsafe fn from_unchecked(obj: Object) -> GcRef<Symbol> {
         debug_assert!(Self::is_type(obj));
         GcRef::from_ptr(Self::associated_tag().untag(obj.0) as *mut Symbol)
+    }
+}
+
+impl Evaluate for Symbol {
+    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
+        if self.is_self_evaluating() {
+            return Err(EvaluatorError::CannotBeReferenced);
+        }
+        Ok(symbol_lookup::lookup_symbol(unsafe {
+            GcRef::from_ptr(self as *const Self as *mut Self)
+        })?)
+    }
+    fn evaluate(&self) -> Result<Object, EvaluatorError> {
+        let gc_r = unsafe { GcRef::from_ptr(self as *const Self as *mut Self) };
+        if self.is_self_evaluating() {
+            return Ok(Object::from(gc_r));
+        }
+        Ok(*(symbol_lookup::lookup_symbol(gc_r)?))
     }
 }
 
