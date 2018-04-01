@@ -75,13 +75,7 @@ pub fn push(obj: Object) -> Result<Reference, StackOverflowError> {
 /// empty `Vec`, to an error - trying to `pop` off an empty stack is a
 /// serious problem.
 pub fn pop() -> Result<Object, StackUnderflowError> {
-    STACK.with(|s| {
-        if let Some(obj) = s.borrow_mut().pop() {
-            Ok(obj)
-        } else {
-            Err(StackUnderflowError {})
-        }
-    })
+    STACK.with(|s| s.borrow_mut().pop().ok_or(StackUnderflowError {}))
 }
 
 /// Given a `length`, pop that many items off the stack. This is
