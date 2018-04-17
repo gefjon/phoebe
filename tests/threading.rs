@@ -1,50 +1,67 @@
 extern crate phoebe;
+
+use phoebe::repl::test_utilities::test_input_output_pairs;
 use std::thread;
-
-fn test_input_output_pairs(pairs: &[(&[u8], &[u8])]) {
-    use phoebe::repl::{initialize, read_eval_print_loop};
-    use std::str;
-
-    initialize();
-    for &(input, output) in pairs {
-        let mut input_buf = input.to_vec();
-        let mut output_buf = Vec::with_capacity(output.len());
-        let mut error_buf = Vec::new();
-        let mut inp = &input_buf[..];
-
-        read_eval_print_loop(&mut inp, &mut output_buf, &mut error_buf, false).unwrap();
-        if !error_buf.is_empty() {
-            panic!(
-                "read_eval_print_loop errored: {}",
-                str::from_utf8(&error_buf).unwrap()
-            );
-        }
-        assert_eq!(
-            str::from_utf8(output),
-            str::from_utf8(&output_buf),
-            "{} returned {}",
-            str::from_utf8(&input_buf).unwrap(),
-            str::from_utf8(&output_buf).unwrap()
-        );
-    }
-}
 
 #[test]
 fn do_two_things_in_different_threads() {
     let first_child = thread::spawn(move || {
         test_input_output_pairs(&[
-            (b"(defvar x 5)", b"5\n"),
-            (b"(defun return-x () x)", b"[function return-x]\n"),
-            (b"(list (return-x) x)", b"(5 5)\n"),
-        ]);
+            ("(defvar x 5)", "5\n"),
+            ("(defun return-x () x)", "[function return-x]\n"),
+            ("(list (return-x) x)", "(5 5)\n"),
+        ]).unwrap();
     });
     let second_child = thread::spawn(move || {
         test_input_output_pairs(&[
-            (b"(defvar y 2)", b"2\n"),
-            (b"(defun return-y () y)", b"[function return-y]\n"),
-            (b"(list (return-y) y)", b"(2 2)\n"),
-        ]);
+            ("(defvar y 2)", "2\n"),
+            ("(defun return-y () y)", "[function return-y]\n"),
+            ("(list (return-y) y)", "(2 2)\n"),
+        ]).unwrap();
     });
     first_child.join().expect("Thread first_child paniced!");
     second_child.join().expect("Thread second_child paniced!");
+}
+
+#[test]
+fn many_threads_at_once() {
+    use std::thread::{spawn, JoinHandle};
+    const NUMBER_OF_THREADS: usize = 32;
+    fn thread_inner(sym: usize) {
+        test_input_output_pairs(&[
+            (
+                &format!("(defvar make-a-thread-{0} {0})", sym),
+                &format!("{}\n", sym),
+            ),
+            (
+                &format!(
+                    "(defun make-a-thread-fn-{0} () \
+                     (* make-a-thread-{0} {0}))",
+                    sym
+                ),
+                &format!("[function make-a-thread-fn-{}]\n", sym),
+            ),
+            (
+                &format!("(setf make-a-thread-{0} (make-a-thread-fn-{0}))", sym),
+                &format!("{}\n", sym * sym),
+            ),
+            (
+                &format!("make-a-thread-{}", sym),
+                &format!("{}\n", sym * sym),
+            ),
+        ]).unwrap();
+    }
+    fn make_a_thread(sym: usize) -> JoinHandle<()> {
+        spawn(move || thread_inner(sym))
+    }
+
+    let mut handles = Vec::with_capacity(NUMBER_OF_THREADS);
+
+    for i in 0..NUMBER_OF_THREADS {
+        handles.push(make_a_thread(i));
+    }
+
+    for handle in handles.drain(..) {
+        handle.join().expect("A thread errored");
+    }
 }

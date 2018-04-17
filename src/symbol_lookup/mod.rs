@@ -72,12 +72,19 @@ fn remove_ref_to(n: GcRef<Namespace>) {
     };
     if should_remove {
         let _remove_res = ref_counts.remove(&n);
-        debug_assert!(_remove_res.is_some());
+        debug_assert!(_remove_res == Some(0));
     }
 }
 
 pub fn default_global_env() -> GcRef<Namespace> {
     *DEFAULT_GLOBAL_ENV
+}
+
+pub fn set_global_env(env: GcRef<Namespace>) {
+    ENV_STACK.with(|s| {
+        let stack: &mut Vec<GcRef<Namespace>> = &mut s.borrow_mut();
+        stack[0] = env;
+    })
 }
 
 pub fn current_env() -> GcRef<Namespace> {
@@ -103,6 +110,17 @@ pub fn gc_mark_scope(m: usize) {
     for env in ENV_REF_COUNTS.lock().unwrap().keys() {
         env.gc_mark(m);
     }
+}
+
+pub fn with_global_env<F, T>(env: GcRef<Namespace>, fun: F) -> Result<T, EvaluatorError>
+where
+    F: FnOnce() -> Result<T, EvaluatorError>,
+{
+    stack::push(Object::from(global_env()))?;
+    set_global_env(env);
+    let res = fun();
+    set_global_env(unsafe { stack::pop()?.into_unchecked() });
+    res
 }
 
 /// Executes a closure while `env` is on top of the stack, removing it
@@ -146,20 +164,24 @@ where
 ///
 /// would error, as references to `x` within the `cond` block would be
 /// undefined.
-pub fn in_parent_env<F, T>(fun: F) -> T
+pub fn in_parent_env<F, T>(fun: F) -> Result<T, EvaluatorError>
 where
-    F: FnOnce() -> T,
+    F: FnOnce() -> Result<T, EvaluatorError>,
 {
-    let current_env = {
+    stack::push(Object::from({
         ENV_STACK.with(|s| {
             let mut stack = s.borrow_mut();
             debug_assert!(stack.len() > 1);
             stack.pop().unwrap()
         })
-    };
+    }))?;
     let res = fun();
     {
-        ENV_STACK.with(|s| s.borrow_mut().push(current_env));
+        ENV_STACK.with(|s| -> Result<(), EvaluatorError> {
+            s.borrow_mut()
+                .push(unsafe { stack::pop()?.into_unchecked() });
+            Ok(())
+        })?;
     }
     res
 }

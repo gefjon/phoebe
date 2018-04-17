@@ -2,6 +2,7 @@ use super::pointer_tagging::{ObjectTag, PointerTag};
 use prelude::*;
 use std::collections::HashMap;
 use std::default::Default;
+use std::sync::RwLock;
 use std::{convert, fmt, iter};
 
 lazy_static! {
@@ -21,7 +22,7 @@ impl GcRef<Namespace> {
                 ..
             } => Namespace::Heap {
                 parent: Some(p.clone_if_needed()),
-                table: table.clone(),
+                table: RwLock::new((*(table.read().unwrap())).clone()),
                 name,
                 gc_marking: GcMark::default(),
             },
@@ -31,10 +32,14 @@ impl GcRef<Namespace> {
             Namespace::Stack {
                 ref table, parent, ..
             } => {
-                let table = table
-                    .iter()
-                    .map(|(&s, r)| (s, HeapObject::allocate(HeapObject::around(**r))))
-                    .collect();
+                let table = RwLock::new(
+                    table
+                        .read()
+                        .unwrap()
+                        .iter()
+                        .map(|(&s, r)| (s, HeapObject::allocate(HeapObject::around(**r))))
+                        .collect(),
+                );
                 let parent = parent.and_then(|p| Some(p.clone_if_needed()));
                 Namespace::Heap {
                     gc_marking: GcMark::default(),
@@ -58,12 +63,12 @@ pub enum Namespace {
     Heap {
         gc_marking: GcMark,
         name: Option<Object>,
-        table: HashMap<GcRef<Symbol>, GcRef<HeapObject>>,
+        table: RwLock<HashMap<GcRef<Symbol>, GcRef<HeapObject>>>,
         parent: Option<GcRef<Namespace>>,
     },
     Stack {
         gc_marking: GcMark,
-        table: HashMap<GcRef<Symbol>, Reference>,
+        table: RwLock<HashMap<GcRef<Symbol>, Reference>>,
         parent: Option<GcRef<Namespace>>,
     },
 }
@@ -78,14 +83,14 @@ impl Clone for Namespace {
                 ..
             } => Namespace::Heap {
                 name,
-                table: table.clone(),
+                table: RwLock::new((*(table.read().unwrap())).clone()),
                 parent,
                 gc_marking: GcMark::default(),
             },
             Namespace::Stack {
                 ref table, parent, ..
             } => Namespace::Stack {
-                table: table.clone(),
+                table: RwLock::new((*(table.read().unwrap())).clone()),
                 parent,
                 gc_marking: GcMark::default(),
             },
@@ -98,7 +103,7 @@ impl iter::FromIterator<(GcRef<Symbol>, Reference)> for Namespace {
     where
         I: iter::IntoIterator<Item = (GcRef<Symbol>, Reference)>,
     {
-        let table = iter.into_iter().collect();
+        let table = RwLock::new(iter.into_iter().collect());
         Namespace::Stack {
             gc_marking: GcMark::default(),
             table,
@@ -112,12 +117,14 @@ impl iter::FromIterator<(GcRef<Symbol>, Object)> for Namespace {
     where
         I: iter::IntoIterator<Item = (GcRef<Symbol>, Object)>,
     {
-        let table = iter.into_iter()
-            .map(|(r, o)| {
-                let h = HeapObject::allocate(HeapObject::around(o));
-                (r, h)
-            })
-            .collect();
+        let table = RwLock::new(
+            iter.into_iter()
+                .map(|(r, o)| {
+                    let h = HeapObject::allocate(HeapObject::around(o));
+                    (r, h)
+                })
+                .collect(),
+        );
         Namespace::Heap {
             gc_marking: GcMark::default(),
             name: None,
@@ -132,13 +139,44 @@ impl Default for Namespace {
         Namespace::Heap {
             gc_marking: GcMark::default(),
             name: None,
-            table: HashMap::new(),
+            table: RwLock::new(HashMap::new()),
             parent: None,
         }
     }
 }
 
 impl Namespace {
+    pub fn lowest_parent<'any>(mut me: GcRef<Namespace>) -> &'any mut Option<GcRef<Namespace>> {
+        loop {
+            match *me {
+                Namespace::Heap {
+                    parent: Some(p), ..
+                }
+                | Namespace::Stack {
+                    parent: Some(p), ..
+                } => {
+                    me = p;
+                }
+                _ => {
+                    break;
+                }
+            }
+        }
+
+        match *me {
+            Namespace::Heap { ref mut parent, .. } | Namespace::Stack { ref mut parent, .. } => {
+                unsafe {
+                    // Any references to garbage-collected items are
+                    // valid for any lifetime, including `'static`, as
+                    // long as the references are correctly included
+                    // in the mark-and-sweep system. The way to
+                    // convert a `&mut T` into a `&'any mut T` is with
+                    // `mem::transmute`.
+                    ::std::mem::transmute(parent)
+                }
+            }
+        }
+    }
     /// This function builds and allocates an env to be used by `let`,
     /// though it *does not* push it to the `ENV_STACK`.
     pub fn create_let_env(pairs: &[(GcRef<Symbol>, Object)]) -> GcRef<Namespace> {
@@ -198,13 +236,32 @@ impl Namespace {
         }
         self
     }
+    pub fn with_maybe_name(mut self, n: Option<Object>) -> Namespace {
+        match self {
+            Namespace::Heap { ref mut name, .. } => {
+                *name = n;
+            }
+            Namespace::Stack { .. } => {
+                panic!("Attempt to name a stack Namespace");
+            }
+        }
+        self
+    }
+    pub fn make_sym_ref_search_parent(&mut self, sym: GcRef<Symbol>) -> Reference {
+        self.get_sym_ref(sym)
+            .unwrap_or_else(|| self.make_sym_ref(sym))
+    }
     pub fn get_sym_ref(&self, sym: GcRef<Symbol>) -> Option<Reference> {
         match *self {
             Namespace::Heap { ref table, .. } => table
+                .read()
+                .unwrap()
                 .get(&sym)
                 .map(|&h| Reference::from(h))
                 .or_else(|| self.parent().and_then(|n| n.get_sym_ref(sym))),
             Namespace::Stack { ref table, .. } => table
+                .read()
+                .unwrap()
                 .get(&sym)
                 .cloned()
                 .or_else(|| self.parent().and_then(|n| n.get_sym_ref(sym))),
@@ -219,7 +276,7 @@ impl Namespace {
 
         match *self {
             Namespace::Heap { ref mut table, .. } => {
-                let p = *(table.entry(sym).or_insert_with(|| {
+                let p = *(table.write().unwrap().entry(sym).or_insert_with(|| {
                     HeapObject::allocate(HeapObject::around(Object::default()))
                 }));
                 p.into()
@@ -260,13 +317,23 @@ impl GarbageCollected for Namespace {
     }
     fn gc_mark_children(&mut self, mark: usize) {
         match *self {
-            Namespace::Heap { ref mut table, .. } => for (sym, heapobj) in table {
+            Namespace::Heap {
+                ref mut table,
+                parent,
+                ..
+            } => for (sym, heapobj) in table.read().unwrap().iter() {
                 sym.clone().gc_mark(mark);
                 heapobj.clone().gc_mark(mark);
+                parent.map(|p| p.gc_mark(mark));
             },
-            Namespace::Stack { ref mut table, .. } => for (sym, reference) in table {
+            Namespace::Stack {
+                ref mut table,
+                parent,
+                ..
+            } => for (sym, reference) in table.read().unwrap().iter() {
                 sym.clone().gc_mark(mark);
                 (*reference).gc_mark(mark);
+                parent.map(|p| p.gc_mark(mark));
             },
         }
     }

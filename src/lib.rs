@@ -13,6 +13,7 @@ pub(crate) mod allocate;
 mod builtins;
 pub(crate) mod evaluator;
 pub(crate) mod gc;
+pub mod gensym;
 pub(crate) mod prelude;
 pub(crate) mod printer;
 pub(crate) mod reader;

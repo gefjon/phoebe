@@ -4,14 +4,22 @@
 //! * the trait `Evaluate`
 //! * the enum `EvaluatorError`
 
-use gc::{gc_maybe_pass, GcRef};
-use stack::{StackOverflowError, StackUnderflowError};
+use gc::GcRef;
+use prelude::*;
+use stack::{ArgIndexError, StackOverflowError, StackUnderflowError};
 use std::convert;
 use symbol_lookup::UnboundSymbolError;
 use types::conversions::ConversionError;
 use types::reference::Reference;
 use types::symbol::Symbol;
 use types::{list, ExpandedObject, Object};
+
+pub unsafe fn eval_from_stack() -> Result<(), EvaluatorError> {
+    let to_eval = stack::nth_arg(0)?;
+    let res = (*to_eval).evaluate()?;
+    stack::close_stack_frame_and_return(res);
+    Ok(())
+}
 
 #[derive(Fail, Debug)]
 /// Represents the different ways that evaluation can fail. In the
@@ -49,6 +57,9 @@ pub enum EvaluatorError {
     #[fail(display = "The key {} did not have an accompanying symbol when parsing key arguments.",
            key)]
     UnaccompaniedKey { key: GcRef<Symbol> },
+
+    #[fail(display = "{}", _0)]
+    ArgIndex(ArgIndexError),
 }
 
 unsafe impl Sync for EvaluatorError {}
@@ -57,6 +68,12 @@ unsafe impl Send for EvaluatorError {}
 impl EvaluatorError {
     pub fn bad_args_count(arglist: list::List, found: usize) -> Self {
         EvaluatorError::BadArgCount { arglist, found }
+    }
+}
+
+impl convert::From<ArgIndexError> for EvaluatorError {
+    fn from(e: ArgIndexError) -> EvaluatorError {
+        EvaluatorError::ArgIndex(e)
     }
 }
 
@@ -134,28 +151,12 @@ impl Evaluate for Object {
     fn evaluate(&self) -> Result<Object, EvaluatorError> {
         info!("Evaluating {}.", self);
 
-        let res = ExpandedObject::from(*self).evaluate();
-
-        // NOTE: if `res` is an error which contains a reference to a
-        // heap-object which is not referenced anywhere else and the
-        // garbage collector runs, that object will be incorrectly
-        // deallocated, leading to UB.
-        gc_maybe_pass();
-
-        res
+        ExpandedObject::from(*self).evaluate()
     }
     fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
         info!("Evaluating {} to reference.", self);
 
-        let res = ExpandedObject::from(*self).eval_to_reference();
-
-        // NOTE: if `res` is an error which contains a reference to a
-        // heap-object which is not referenced anywhere else and the
-        // garbage collector runs, that object will be incorrectly
-        // deallocated, leading to UB.
-        gc_maybe_pass();
-
-        res
+        ExpandedObject::from(*self).eval_to_reference()
     }
 }
 

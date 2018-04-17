@@ -1,7 +1,8 @@
-use builtins::make_builtins;
-use evaluator::Evaluate;
-use printer::print;
-use reader::read;
+use builtins::make_builtins_once;
+use evaluator::eval_from_stack;
+use printer::print_from_stack;
+use reader::{read, ReaderError};
+use stack::{self, StackOverflowError};
 use std::io::prelude::*;
 use std::{convert, io};
 
@@ -11,11 +12,19 @@ const PROMPT: &[u8] = b"phoebe> ";
 pub enum ReplError {
     #[fail(display = "IO error {}", _0)]
     IoError(io::Error),
+    #[fail(display = "{}", _0)]
+    StackOverflow(StackOverflowError),
 }
 
 impl convert::From<io::Error> for ReplError {
     fn from(e: io::Error) -> ReplError {
         ReplError::IoError(e)
+    }
+}
+
+impl convert::From<StackOverflowError> for ReplError {
+    fn from(e: StackOverflowError) -> ReplError {
+        ReplError::StackOverflow(e)
     }
 }
 
@@ -36,22 +45,22 @@ where
     O: Write,
     E: Write,
 {
-    initialize();
+    make_builtins_once();
     read_eval_print_loop(input, output, error, should_prompt)
 }
 
-/// Initializes Phoebe. `repl` calls this, but any threads which
-/// intend to call `read_eval_print_loop` themselves should
-/// `initialize` first.
-pub fn initialize() {
-    make_builtins();
+enum ReadResult {
+    NoneRead,
+    Ok,
+    StackError(StackOverflowError),
+    ReadError(ReaderError),
 }
 
 /// Repeatedly read, evaluate, and print from `input` into `output`,
 /// signaling any errors into `error`, until `input` is empty. If
 /// `should_prompt`, will print `phoebe> ` before each `read`. This is
 /// called internally by `repl` and is exposed mostly for testing.
-pub fn read_eval_print_loop<I, O, E>(
+fn read_eval_print_loop<I, O, E>(
     input: &mut I,
     output: &mut O,
     error: &mut E,
@@ -67,15 +76,38 @@ where
         if should_prompt {
             prompt(output)?;
         }
-        match read(input_iter) {
-            Err(e) => writeln!(error, "{}", e)?,
-            Ok(None) => {
+        match stack::with_stack(|s| match read(input_iter) {
+            Err(e) => ReadResult::ReadError(e),
+            Ok(None) => ReadResult::NoneRead,
+            Ok(Some(obj)) => {
+                if let Err(e) = stack::make_stack_frame(s, &[obj]) {
+                    ReadResult::StackError(e)
+                } else {
+                    ReadResult::Ok
+                }
+            }
+        }) {
+            ReadResult::NoneRead => {
                 return Ok(());
             }
-            Ok(Some(obj)) => match obj.evaluate() {
-                Err(e) => writeln!(error, "{}", e)?,
-                Ok(obj) => writeln!(output, "{}", print(obj))?,
-            },
+            ReadResult::Ok => {
+                if let Err(e) = unsafe { eval_from_stack() } {
+                    writeln!(error, "{}", e)?;
+                } else {
+                    // eval_from_stack pushes its return value to the
+                    // stack, but without a frame_length. Adding that
+                    // frame_length turns it into the stack frame for
+                    // `print_from_stack`.
+                    stack::push(1usize.into())?;
+                    writeln!(output, "{}", unsafe { print_from_stack() })?;
+                }
+            }
+            ReadResult::ReadError(e) => {
+                writeln!(error, "{}", e)?;
+            }
+            ReadResult::StackError(e) => {
+                return Err(e.into());
+            }
         }
     }
 }
@@ -105,14 +137,12 @@ pub mod test_utilities {
     }
 
     pub fn test_input_output_pairs(pairs: &[(&str, &str)]) -> Result<(), TestIOPairsError> {
-        initialize();
-
         for &(input, output) in pairs {
             let mut input_buf: &[u8] = input.as_bytes();
             let mut output_buf = Vec::with_capacity(output.len());
             let mut error_buf = Vec::new();
 
-            read_eval_print_loop(&mut input_buf, &mut output_buf, &mut error_buf, false).unwrap();
+            repl(&mut input_buf, &mut output_buf, &mut error_buf, false).unwrap();
 
             if !error_buf.is_empty() {
                 return Err(TestIOPairsError::InternalError(String::from_utf8(

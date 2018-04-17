@@ -3,18 +3,19 @@
 //! function is called.
 
 use prelude::*;
-use std::{thread, sync::atomic::{AtomicBool, Ordering}, time::Duration};
+use std::sync::{Once, ONCE_INIT};
+
+static ONCE_BUILTINS: Once = ONCE_INIT;
 
 #[macro_use]
 mod macros;
 
 mod math_builtins;
+mod namespacing;
 
-/// `true` if any thread has called `make_builtins` yet.
-pub static STARTED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
-
-/// `true` if an instance of `make_builtins` has completed yet.
-pub static FINISHED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
+pub fn make_builtins_once() {
+    ONCE_BUILTINS.call_once(make_builtins);
+}
 
 /// Any new thread which could be spawned before or during sourcing
 /// builtins should call this function as its first act. Calling it
@@ -28,13 +29,7 @@ pub static FINISHED_SOURCING_BUILTINS: AtomicBool = AtomicBool::new(false);
 ///
 /// * no UB will be caused by trying to do things while another thread
 /// is setting up.
-pub fn make_builtins() {
-    if STARTED_SOURCING_BUILTINS.swap(true, Ordering::AcqRel) {
-        while !FINISHED_SOURCING_BUILTINS.load(Ordering::Acquire) {
-            thread::sleep(Duration::from_millis(10));
-        }
-        return;
-    }
+fn make_builtins() {
     info!("Making builtins.");
     special_forms! {
         "cond" (&rest clauses) -> {
@@ -146,6 +141,13 @@ pub fn make_builtins() {
     };
 
     builtin_functions! {
+        "cons" (first second) -> {
+            Ok(Object::from(
+                Cons::allocate(
+                    Cons::new(*first, *second)
+                )
+            ))
+        };
         "list" (&rest elements) -> {
             Ok(*elements)
         };
@@ -155,8 +157,8 @@ pub fn make_builtins() {
         };
     };
 
-    math_builtins::make_math_builtins();
+    namespacing::make_namespace_builtins();
 
-    FINISHED_SOURCING_BUILTINS.store(true, Ordering::Release);
+    math_builtins::make_math_builtins();
     info!("Finished making builtin functions.");
 }

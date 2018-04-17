@@ -1,4 +1,5 @@
 pub(crate) use evaluator::{Evaluate, EvaluatorError};
+pub(crate) use stack;
 pub(crate) use symbol_lookup;
 pub use types::Object;
 pub use types::cons::Cons;

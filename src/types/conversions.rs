@@ -15,6 +15,9 @@ lazy_static! {
     static ref BOOL_TYPE_NAME: GcRef<Symbol> = {
         symbol_lookup::make_symbol(b"boolean")
     };
+    static ref UNSIGNED_INTEGER_TYPE_NAME: GcRef<Symbol> = {
+        symbol_lookup::make_symbol(b"unsigned-integer")
+    };
 }
 
 #[derive(Fail, Debug)]
@@ -232,6 +235,22 @@ impl FromObject for bool {
     }
     fn type_name() -> GcRef<Symbol> {
         *BOOL_TYPE_NAME
+    }
+}
+
+impl FromUnchecked<Object> for usize {
+    unsafe fn from_unchecked(obj: Object) -> usize {
+        usize::associated_tag().untag(obj.0) as usize
+    }
+}
+
+impl FromObject for usize {
+    type Tag = super::immediate::ImmediateTag;
+    fn associated_tag() -> super::immediate::ImmediateTag {
+        super::immediate::ImmediateTag::UnsignedInt
+    }
+    fn type_name() -> GcRef<Symbol> {
+        *UNSIGNED_INTEGER_TYPE_NAME
     }
 }
 

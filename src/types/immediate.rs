@@ -14,6 +14,7 @@ lazy_static! {
 pub enum Immediate {
     Bool(bool),
     Integer(i32),
+    UnsignedInt(usize),
     SpecialMarker(SpecialMarker),
 }
 
@@ -41,6 +42,7 @@ impl fmt::Display for SpecialMarker {
 pub enum ImmediateTag {
     Bool,
     Integer,
+    UnsignedInt,
     SpecialMarker,
 }
 
@@ -89,6 +91,8 @@ impl FromUnchecked<Object> for Immediate {
             Immediate::Integer(i32::from_unchecked(obj))
         } else if bool::is_type(obj) {
             Immediate::Bool(bool::from_unchecked(obj))
+        } else if usize::is_type(obj) {
+            Immediate::UnsignedInt(usize::from_unchecked(obj))
         } else if SpecialMarker::is_type(obj) {
             Immediate::SpecialMarker(SpecialMarker::from_unchecked(obj))
         } else {
@@ -112,6 +116,7 @@ impl convert::From<Immediate> for Object {
         Object::from_raw(match i {
             Immediate::Bool(b) => ImmediateTag::Bool.tag(b as u64),
             Immediate::Integer(n) => ImmediateTag::Integer.tag(u64::from(n as u32)),
+            Immediate::UnsignedInt(n) => ImmediateTag::UnsignedInt.tag(n as u64),
             Immediate::SpecialMarker(s) => ImmediateTag::SpecialMarker.tag(u64::from(s as u32)),
         })
     }
@@ -132,6 +137,18 @@ impl convert::From<i32> for Immediate {
 impl convert::From<i32> for Object {
     fn from(n: i32) -> Object {
         Object::from_raw(ImmediateTag::Integer.tag(u64::from(n as u32)))
+    }
+}
+
+impl convert::From<usize> for Immediate {
+    fn from(n: usize) -> Immediate {
+        Immediate::UnsignedInt(n)
+    }
+}
+
+impl convert::From<usize> for Object {
+    fn from(n: usize) -> Object {
+        Object::from_raw(ImmediateTag::UnsignedInt.tag(n as u64))
     }
 }
 
@@ -162,6 +179,7 @@ impl fmt::Display for Immediate {
                 write!(f, "nil")
             },
             Immediate::Integer(n) => write!(f, "{}", n),
+            Immediate::UnsignedInt(n) => write!(f, "{}", n),
             Immediate::SpecialMarker(s) => write!(f, "{}", s),
         }
     }

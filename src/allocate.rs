@@ -5,8 +5,8 @@
 //! away. Back when `GarbageCollected`, `Allocate` and `Deallocate`
 //! were all seperate traits, this module contained the latter two.
 
-use gc::GarbageCollected;
-use std::sync;
+use gc::{self, GarbageCollected};
+use std::{sync, thread};
 use types::{ExpandedObject, Object};
 
 lazy_static! {
@@ -18,13 +18,14 @@ lazy_static! {
 }
 
 pub fn add_to_alloced(obj: Object) {
-    ALLOCED_OBJECTS.lock().unwrap().push(obj);
-}
+    thread::spawn(move || {
+        let mut l = ALLOCED_OBJECTS.lock().unwrap();
+        l.push(obj);
 
-/// The total number of objects currently on the heap. Used when
-/// determining whether we should garbage collect.
-pub fn alloced_count() -> usize {
-    ALLOCED_OBJECTS.lock().unwrap().len()
+        if l.len() > gc::GC_THRESHOLD.load(sync::atomic::Ordering::Acquire) {
+            gc::THE_GC_THREAD.thread().unpark();
+        }
+    });
 }
 
 #[derive(Fail, Debug)]

@@ -69,6 +69,10 @@ macro_rules! make_arg_syms {
         $(let $oarg = $crate::symbol_lookup::make_symbol(stringify!($oarg).as_ref());)*;
         $(let $rarg = $crate::symbol_lookup::make_symbol(stringify!($rarg).as_ref());)*;
     };
+    ($($arg:ident)* &key $($karg:ident)*) => {
+        $(let $arg = $crate::symbol_lookup::make_symbol(stringify!($arg).as_ref());)*;
+        $(let $karg = $crate::symbol_lookup::make_symbol(stringify!($karg).as_ref());)*;
+    };
 }
 
 macro_rules! get_args {
@@ -87,6 +91,10 @@ macro_rules! get_args {
         $(let $arg = $crate::symbol_lookup::lookup_symbol($arg.clone())?;)*;
         $(let $oarg = $crate::symbol_lookup::lookup_symbol($oarg.clone())?;)*;
         $(let $rarg = $crate::symbol_lookup::lookup_symbol($rarg.clone())?;)*;
+    };
+    ($($arg:ident)* &key $($karg:ident)*) => {
+        $(let $arg = $crate::symbol_lookup::lookup_symbol($arg.clone())?;)*;
+        $(let $karg = $crate::symbol_lookup::lookup_symbol($karg.clone())?;)*;
     };
 }
 
@@ -132,6 +140,17 @@ macro_rules! make_arglist {
                 Object::from(*$crate::types::function::REST)
             );
             $(arglist = arglist.push($crate::types::Object::from($rarg));)*;
+            unsafe { arglist.nreverse() }
+        }
+    };
+    ($($arg:ident)* &key $($karg:ident)*) => {
+        {
+            let mut arglist = $crate::types::list::List::nil();
+            $(arglist = arglist.push($crate::types::Object::from($arg));)*;
+            arglist = arglist.push(
+                Object::from(*$crate::types::function::KEY)
+            );
+            $(arglist = arglist.push($crate::types::Object::from($karg));)*;
             unsafe { arglist.nreverse() }
         }
     };
