@@ -111,9 +111,9 @@ impl FromObject for GcRef<Cons> {
 impl GarbageCollected for Cons {
     type ConvertFrom = Cons;
     fn alloc_one_and_initialize(o: Self) -> ::std::ptr::NonNull<Self> {
-        use std::heap::{Alloc, Heap};
+        use std::alloc::{Alloc, Global};
         use std::ptr;
-        let nn = Heap.alloc_one().unwrap();
+        let nn = Global.alloc_one().unwrap();
         let p = nn.as_ptr();
         unsafe { ptr::write(p, o) };
         nn

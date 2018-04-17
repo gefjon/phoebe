@@ -49,9 +49,9 @@ impl ops::DerefMut for HeapObject {
 impl GarbageCollected for HeapObject {
     type ConvertFrom = HeapObject;
     fn alloc_one_and_initialize(h: HeapObject) -> ::std::ptr::NonNull<HeapObject> {
-        use std::heap::{Alloc, Heap};
+        use std::alloc::{Alloc, Global};
         use std::ptr;
-        let nn = Heap.alloc_one().unwrap();
+        let nn = Global.alloc_one().unwrap();
         let p = nn.as_ptr();
         unsafe { ptr::write(p, h) };
         nn

@@ -54,8 +54,9 @@ pub enum EvaluatorError {
     #[fail(display = "{}", _0)]
     UnboundSymbol(UnboundSymbolError),
 
-    #[fail(display = "The key {} did not have an accompanying symbol when parsing key arguments.",
-           key)]
+    #[fail(
+        display = "The key {} did not have an accompanying symbol when parsing key arguments.", key
+    )]
     UnaccompaniedKey { key: GcRef<Symbol> },
 
     #[fail(display = "{}", _0)]

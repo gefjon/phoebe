@@ -1,8 +1,8 @@
 use prelude::*;
 use stack::StackUnderflowError;
-use std::{convert, fmt, collections::HashMap};
-use types::ConversionError;
+use std::{collections::HashMap, convert, fmt};
 use types::pointer_tagging::{ObjectTag, PointerTag};
+use types::ConversionError;
 
 lazy_static! {
     static ref FUNCTION_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"function") };
@@ -298,9 +298,9 @@ impl Evaluate for FunctionBody {
 impl GarbageCollected for Function {
     type ConvertFrom = Function;
     fn alloc_one_and_initialize(o: Self) -> ::std::ptr::NonNull<Self> {
-        use std::heap::{Alloc, Heap};
+        use std::alloc::{Alloc, Global};
         use std::ptr;
-        let nn = Heap.alloc_one().unwrap();
+        let nn = Global.alloc_one().unwrap();
         let p = nn.as_ptr();
         unsafe { ptr::write(p, o) };
         nn

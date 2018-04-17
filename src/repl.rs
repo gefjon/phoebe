@@ -149,7 +149,7 @@ pub mod test_utilities {
                     error_buf,
                 )?));
             }
-            if !(output_buf == output.as_bytes()) {
+            if output_buf != output.as_bytes() {
                 return Err(TestIOPairsError::WrongOutput {
                     input: String::from(input),
                     found: String::from_utf8(output_buf)?,

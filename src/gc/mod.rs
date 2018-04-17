@@ -5,11 +5,13 @@
 //! `Mutex<GcInfo>`, where `GcInfo` is a struct that maps
 //! `true`/`false` to "white" and "black".
 
-use allocate::ALLOCED_OBJECTS;
 use allocate::deallocate;
+use allocate::ALLOCED_OBJECTS;
 use builtins::make_builtins_once;
 use stack::gc_mark_stack;
-use std::{default::Default, sync::{MutexGuard, atomic::{AtomicUsize, Ordering}},
+use std::{default::Default,
+          sync::{atomic::{AtomicUsize, Ordering},
+                 MutexGuard},
           thread::{self, JoinHandle}};
 use types::Object;
 

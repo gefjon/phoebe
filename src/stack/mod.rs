@@ -1,6 +1,10 @@
 use prelude::*;
-use std::{borrow::BorrowMut, collections::HashMap, ops::IndexMut,
-          sync::{Mutex, RwLock, atomic::{AtomicUsize, Ordering}}};
+use std::{borrow::BorrowMut,
+          collections::HashMap,
+          ops::IndexMut,
+          sync::{atomic::{AtomicUsize, Ordering},
+                 Mutex,
+                 RwLock}};
 
 const STACK_CAPACITY: usize = 128;
 
@@ -17,8 +21,11 @@ lazy_static! {
 }
 
 #[derive(Fail, Debug)]
-#[fail(display = "Attempted to reference argument {} but only found {}.", attempted_index,
-       stack_frame_length)]
+#[fail(
+    display = "Attempted to reference argument {} but only found {}.",
+    attempted_index,
+    stack_frame_length
+)]
 pub struct ArgIndexError {
     pub attempted_index: usize,
     pub stack_frame_length: usize,

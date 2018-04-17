@@ -169,10 +169,8 @@ impl Namespace {
                     // Any references to garbage-collected items are
                     // valid for any lifetime, including `'static`, as
                     // long as the references are correctly included
-                    // in the mark-and-sweep system. The way to
-                    // convert a `&mut T` into a `&'any mut T` is with
-                    // `mem::transmute`.
-                    ::std::mem::transmute(parent)
+                    // in the mark-and-sweep system.
+                    &mut *(parent as *mut Option<GcRef<Namespace>>)
                 }
             }
         }
@@ -301,9 +299,11 @@ impl fmt::Display for Namespace {
 impl GarbageCollected for Namespace {
     type ConvertFrom = Namespace;
     fn alloc_one_and_initialize(n: Namespace) -> ::std::ptr::NonNull<Namespace> {
-        use std::heap::{Alloc, Heap};
+        use std::alloc::{Alloc, Global};
         use std::ptr;
-        let nn = Heap.alloc_one::<Namespace>().unwrap();
+        let nn = Global
+            .alloc_one::<Namespace>()
+            .unwrap_or_else(|_| Global.oom());
         let p = nn.as_ptr();
         unsafe { ptr::write(p, n) };
         nn

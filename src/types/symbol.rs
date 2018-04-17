@@ -1,6 +1,6 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use prelude::*;
-use std::heap::{self, Alloc, Heap, Layout};
+use std::alloc::{Alloc, Global, Layout, Opaque};
 use std::ptr::NonNull;
 use std::{convert, fmt, hash, mem, ptr, slice, str};
 use symbol_lookup::make_symbol;
@@ -39,10 +39,13 @@ impl GarbageCollected for Symbol {
         let text = unsafe { &*text };
 
         let layout = Symbol::make_layout(text.len());
-        let pointer = match unsafe { Heap.alloc(layout) } {
+
+        #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
+        let pointer = match unsafe { Global.alloc(layout) } {
             Ok(p) => p,
-            Err(e) => heap::Heap.oom(e),
-        } as *mut Symbol;
+            Err(_) => Global.oom(),
+        }.as_ptr() as *mut Symbol;
+
         let sym_ref = unsafe { &mut *pointer };
         sym_ref.gc_marking = GcMark::default();
         sym_ref.length = text.len();
@@ -55,7 +58,7 @@ impl GarbageCollected for Symbol {
         let p = obj.into_ptr();
         ptr::drop_in_place((&mut *p).as_mut() as *mut [u8]);
         let layout = (&*p).my_layout();
-        heap::Heap.dealloc(p as *mut u8, layout);
+        Global.dealloc(NonNull::new_unchecked(p as *mut Opaque), layout);
     }
     fn my_marking(&self) -> &GcMark {
         &self.gc_marking

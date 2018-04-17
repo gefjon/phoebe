@@ -3,7 +3,10 @@
 
 use super::{GcMark, GcRef};
 use allocate::add_to_alloced;
-use std::{convert, heap::{self, Alloc}, ptr::{self, NonNull}, sync::atomic::Ordering};
+use std::{alloc::{self, Alloc},
+          convert,
+          ptr::{self, NonNull},
+          sync::atomic::Ordering};
 use types::Object;
 
 /// All heap-allocated `Object`s implement this trait.
@@ -38,7 +41,7 @@ where
     unsafe fn deallocate(obj: GcRef<Self>) {
         let nn: NonNull<Self> = obj.into();
         ptr::drop_in_place(nn.as_ptr());
-        heap::Heap.dealloc_one(nn);
+        alloc::Global.dealloc_one(nn);
     }
     fn my_marking(&self) -> &GcMark;
 
