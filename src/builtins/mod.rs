@@ -13,22 +13,22 @@ mod macros;
 mod math_builtins;
 mod namespacing;
 
-pub fn make_builtins_once() {
-    ONCE_BUILTINS.call_once(make_builtins);
-}
-
 /// Any new thread which could be spawned before or during sourcing
 /// builtins should call this function as its first act. Calling it
 /// multiple times, either concurrently or in series, is safe and only
 /// the first time will result in actual work being done. If another
-/// thread is currently running `make_builtins`, a call to
-/// `make_builtins` will sleep until that thread's call returns, so
-/// any thread which calls `make_builtins` will garuntee that:
+/// thread is currently running `make_builtins_once`, a call to
+/// `make_builtins_once` will sleep until that thread's call returns,
+/// so any thread which calls `make_builtins_once` will garuntee that:
 ///
-/// * builtins are sourced by the time `make_builtins` returns
+/// * builtins are sourced by the time `make_builtins_once` returns
 ///
 /// * no UB will be caused by trying to do things while another thread
 /// is setting up.
+pub fn make_builtins_once() {
+    ONCE_BUILTINS.call_once(make_builtins);
+}
+
 fn make_builtins() {
     info!("Making builtins.");
     special_forms! {
@@ -47,6 +47,43 @@ fn make_builtins() {
                     }
                 }
                 Ok(Object::nil())
+            })
+        };
+        "if" (test then &rest elses) -> {
+            symbol_lookup::in_parent_env(|| {
+                if bool::from((*test).evaluate()?) {
+                    (*then).evaluate()
+                } else {
+                    let mut res = Object::nil();
+                    for clause in List::try_convert_from(*elses)? {
+                        res = clause.evaluate()?;
+                    }
+                    Ok(res)
+                }
+            })
+        };
+        "when" (test &rest clauses) -> {
+            symbol_lookup::in_parent_env(|| {
+                if bool::from((*test).evaluate()?) {
+                    let mut res = Object::nil();
+                    for clause in List::try_convert_from(*clauses)? {
+                        res = clause.evaluate()?;
+                    }
+                    Ok(res)
+                } else {
+                    Ok(Object::nil())
+                }
+            })
+        };
+        "unless" (test &rest clauses) -> {
+            symbol_lookup::in_parent_env(|| {
+                let mut res = (*test).evaluate()?;
+                if !bool::from(res) {
+                    for clause in List::try_convert_from(*clauses)? {
+                        res = clause.evaluate()?;
+                    }
+                }
+                Ok(res)
             })
         };
         "let" (bindings &rest body) -> {

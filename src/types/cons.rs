@@ -3,7 +3,7 @@ use std::{cmp, convert, fmt};
 use types::pointer_tagging::{ObjectTag, PointerTag};
 
 lazy_static! {
-    static ref CONS_TYPE_NAME: GcRef<Symbol> = { ::symbol_lookup::make_symbol(b"cons") };
+    static ref CONS_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"cons") };
 }
 
 #[derive(Debug)]
