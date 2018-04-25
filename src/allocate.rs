@@ -6,8 +6,23 @@
 //! were all seperate traits, this module contained the latter two.
 
 use gc::{self, GarbageCollected};
-use std::{sync, thread};
+use std::{sync::{self, atomic, mpsc, Mutex},
+          thread};
 use types::{ExpandedObject, Object};
+
+/// The allocator's stack size, in bytes. This doesn't need to be
+/// particularly large; the 2MiB default is excessive.
+const ALLOCATOR_THREAD_STACK_SIZE: usize = 16 * 1024;
+
+#[cfg(test)]
+lazy_static! {
+    pub static ref ALLOCATOR_SIGNAL_TUPLE: (Mutex<Object>, sync::Condvar) = {
+        (
+            sync::Mutex::new(Object::uninitialized()),
+            sync::Condvar::new(),
+        )
+    };
+}
 
 lazy_static! {
     /// A vector of every object which has been allocated on the
@@ -15,17 +30,52 @@ lazy_static! {
     /// through this vector while filtering out and deallocating any
     /// unused objects.
     pub static ref ALLOCED_OBJECTS: sync::Mutex<Vec<Object>> = { sync::Mutex::new(Vec::new()) };
+
+    /// The garbage collector runs in a seperate thread and must
+    /// maintain a lock on `ALLOCED_OBJECTS` while it is running, but
+    /// we don't want any thread which allocates anything to
+    /// block. The solution is a special allocator thread
+    static ref JUST_ALLOCATED: Mutex<mpsc::Sender<Object>> = {
+        let (sender, receiver) = mpsc::channel();
+        thread::Builder::new()
+            .name("Allocator".to_owned())
+            .stack_size(ALLOCATOR_THREAD_STACK_SIZE)
+            .spawn(move || {
+                for o in receiver.iter() {
+                    let ct = {
+                        let mut alloced = ALLOCED_OBJECTS.lock().unwrap();
+                        alloced.push(o);
+                        alloced.len()
+                    };
+
+                    #[cfg(test)]
+                    {
+                        let (ref mutex, ref cond_var) = *ALLOCATOR_SIGNAL_TUPLE;
+                        *(mutex.lock().unwrap()) = o;
+                        cond_var.notify_all();
+                    }
+
+                    if ct > gc::GC_THRESHOLD.load(atomic::Ordering::Relaxed) {
+                        gc::THE_GC_THREAD.thread().unpark();
+                    }
+                }
+            })
+            .unwrap();
+        Mutex::new(sender)
+    };
 }
 
-pub fn add_to_alloced(obj: Object) {
-    thread::spawn(move || {
-        let mut l = ALLOCED_OBJECTS.lock().unwrap();
-        l.push(obj);
+thread_local! {
+    static JUST_ALLOCATED_SENDER: mpsc::Sender<Object> = {
+        JUST_ALLOCATED.lock().unwrap().clone()
+    };
+}
 
-        if l.len() > gc::GC_THRESHOLD.load(sync::atomic::Ordering::Acquire) {
-            gc::THE_GC_THREAD.thread().unpark();
-        }
-    });
+/// Every time we allocate an `Object` with heap data, we call
+/// `add_to_alloced` on the new `Object`. That puts it into the
+/// `ALLOCED_OBJECTS` so that the garbage collector can find it.
+pub fn add_to_alloced(obj: Object) {
+    JUST_ALLOCATED_SENDER.with(|s| s.send(obj).unwrap());
 }
 
 #[derive(Fail, Debug)]

@@ -15,6 +15,13 @@ use std::{default::Default,
           thread::{self, JoinHandle}};
 use types::Object;
 
+#[cfg(test)]
+use std::sync;
+
+/// The garbage collector's stack size, in bytes. This doesn't need to
+/// be particularly large; the 2MiB default is excessive.
+const GARBAGE_COLLECTOR_STACK_SIZE: usize = 32 * 1024;
+
 /// This is currently set to `0` for testing purposes - bugs get
 /// caught much more quickly when the gc runs immediately. A
 /// reasonable value would be based off the number of builtin
@@ -23,9 +30,23 @@ use types::Object;
 /// interpreter with many more builtins.
 const INITIAL_GC_THRESHOLD: usize = 0;
 
+#[cfg(test)]
+lazy_static! {
+    /// `GC_SIGNAL_TUPLE.0` is a `Mutex<bool>` representing the
+    /// garbage collector having run, and `.1` is a `Condvar` which
+    /// signals whenever the garbage collector runs.
+    pub static ref GC_SIGNAL_TUPLE: (sync::Mutex<bool>, sync::Condvar) = {
+        (sync::Mutex::new(false), sync::Condvar::new())
+    };
+}
+
 lazy_static! {
     pub static ref THE_GC_THREAD: JoinHandle<!> = {
-        thread::spawn(gc_thread)
+        thread::Builder::new()
+            .name("Garbage collector".to_owned())
+            .stack_size(GARBAGE_COLLECTOR_STACK_SIZE)
+            .spawn(gc_thread)
+            .unwrap()
     };
     static ref THE_GC_MARK: AtomicUsize = { AtomicUsize::default() };
     /// Whenever we finish evaluating an `Object`, we check to see if
@@ -92,13 +113,27 @@ fn mark_scope(m: usize) {
 /// otherwise it will mark all accessible objects and deallocate any
 /// others.
 pub fn gc_pass() {
-    let mut lock = ALLOCED_OBJECTS.lock().unwrap();
     info!("Garbage collecting.");
-    let mark = THE_GC_MARK.fetch_add(1, Ordering::Relaxed);
-    gc_mark_stack(mark);
-    mark_scope(mark);
-    sweep(mark, &mut lock);
-    update_gc_threshold(&lock);
+
+    {
+        let mut lock = ALLOCED_OBJECTS.lock().unwrap();
+        debug!("Acquired the ALLOCED_OBJECTS lock");
+        let mark = THE_GC_MARK.fetch_add(1, Ordering::Relaxed);
+        gc_mark_stack(mark);
+        mark_scope(mark);
+        sweep(mark, &mut lock);
+        update_gc_threshold(&lock);
+        debug!("Dropping the ALLOCED_OBJECTS lock");
+    }
+
+    #[cfg(test)]
+    {
+        let (ref mutex, ref cond_var) = *GC_SIGNAL_TUPLE;
+
+        *(mutex.lock().unwrap()) = true;
+        cond_var.notify_all();
+    }
+
     info!("Finished garbage collecting.");
 }
 
@@ -109,5 +144,61 @@ fn gc_thread() -> ! {
             gc_pass();
         }
         thread::park();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use allocate::{ALLOCATOR_SIGNAL_TUPLE, ALLOCED_OBJECTS};
+    use prelude::*;
+    use stack;
+    #[test]
+    fn something_gets_deallocated() {
+        let dead_beef = stack::with_stack(|s| {
+            let dead_beef: Object =
+                HeapObject::allocate(HeapObject::around(Object::from(0xdead_beefusize))).into();
+            s.push(dead_beef);
+
+            dead_beef
+        });
+
+        {
+            let (ref al_mutex, ref al_cond_var) = *ALLOCATOR_SIGNAL_TUPLE;
+            let mut lock = al_mutex.lock().unwrap();
+
+            while *lock != dead_beef {
+                lock = al_cond_var.wait(lock).unwrap();
+            }
+        }
+
+        {
+            let a_o = ALLOCED_OBJECTS.lock().unwrap();
+            assert!(a_o.contains(&dead_beef));
+        }
+
+        assert_eq!(stack::pop().unwrap(), dead_beef);
+
+        {
+            let (ref gc_mutex, ref gc_cond_var) = *GC_SIGNAL_TUPLE;
+            let mut lock = gc_mutex.lock().unwrap();
+
+            // We wait through two gc cycles in case one has already
+            // started - the already-in-progress one may not
+            // deallocate `dead_beef`, but the next one must.
+            for _ in 0..2 {
+                *lock = false;
+
+                THE_GC_THREAD.thread().unpark();
+
+                while !*lock {
+                    lock = gc_cond_var.wait(lock).unwrap();
+                }
+            }
+        }
+        {
+            let a_o = ALLOCED_OBJECTS.lock().unwrap();
+            assert!(!(a_o.contains(&dead_beef)));
+        }
     }
 }
