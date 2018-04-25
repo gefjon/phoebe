@@ -52,10 +52,10 @@ pub fn make_namespace_builtins() {
 
             let nmspc = Object::from(Namespace::allocate(nmspc));
 
-            name.map(|s| {
+            if let Some(s) = name {
                 let mut r = symbol_lookup::make_from_global_namespace(s);
                 *r = nmspc;
-            });
+            };
 
             Ok(nmspc)
         };

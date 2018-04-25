@@ -324,7 +324,9 @@ impl GarbageCollected for Namespace {
             } => for (sym, heapobj) in table.read().unwrap().iter() {
                 sym.clone().gc_mark(mark);
                 heapobj.clone().gc_mark(mark);
-                parent.map(|p| p.gc_mark(mark));
+                if let Some(p) = parent {
+                    p.gc_mark(mark);
+                }
             },
             Namespace::Stack {
                 ref mut table,
@@ -333,7 +335,9 @@ impl GarbageCollected for Namespace {
             } => for (sym, reference) in table.read().unwrap().iter() {
                 sym.clone().gc_mark(mark);
                 (*reference).gc_mark(mark);
-                parent.map(|p| p.gc_mark(mark));
+                if let Some(p) = parent {
+                    p.gc_mark(mark);
+                }
             },
         }
     }
