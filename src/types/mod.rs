@@ -1,8 +1,10 @@
+use self::pointer_tagging::*;
 use prelude::*;
-use std::{convert, default, fmt};
+use std::{convert, default, fmt, ops};
 
 pub mod cons;
 pub mod conversions;
+pub mod error;
 pub mod function;
 pub mod heap_object;
 pub mod immediate;
@@ -20,15 +22,31 @@ pub mod symbol;
 pub struct Object(u64);
 
 impl Object {
+    pub fn quiet_error(e: GcRef<Error>) -> Object {
+        Object::from_raw(self::error::ErrorTag::Quiet.tag(e.into_ptr() as u64))
+    }
+    pub fn loud_error(e: GcRef<Error>) -> Object {
+        Object::from_raw(self::error::ErrorTag::Signaling.tag(e.into_ptr() as u64))
+    }
+    pub fn expand_quiet(self) -> ExpandedObject {
+        use std::convert::TryInto;
+        match self.try_into() {
+            Ok(ex) => ex,
+            Err(e) => ExpandedObject::QuietError(e),
+        }
+    }
     pub fn from_raw(n: u64) -> Object {
         Object(n)
+    }
+    pub fn into_raw(self) -> u64 {
+        self.0
     }
     /// Used by the garbage collector. Returns `true` if this object
     /// should be passed to `allocate::deallocate` - heap objects will
     /// return `true` if their `gc_marking` does not match `mark` and
     /// by-value objects will always return `false`.
     pub fn should_dealloc(self, mark: usize) -> bool {
-        match ExpandedObject::from(self) {
+        match self.expand_quiet() {
             ExpandedObject::Float(_)
             | ExpandedObject::Immediate(_)
             | ExpandedObject::Reference(_) => false,
@@ -37,13 +55,14 @@ impl Object {
             ExpandedObject::Namespace(n) => n.should_dealloc(mark),
             ExpandedObject::HeapObject(h) => h.should_dealloc(mark),
             ExpandedObject::Function(func) => func.should_dealloc(mark),
+            ExpandedObject::QuietError(e) => e.should_dealloc(mark),
         }
     }
     /// Used by the garbage collector - if `self` is a heap object,
     /// this method derefs and marks it so that it will not be
     /// deallocated. For by-value objects, this is a no-op.
     pub fn gc_mark(self, mark: usize) {
-        match ExpandedObject::from(self) {
+        match self.expand_quiet() {
             ExpandedObject::Float(_) | ExpandedObject::Immediate(_) => (),
             ExpandedObject::Reference(r) => (*r).gc_mark(mark),
             ExpandedObject::Cons(c) => c.gc_mark(mark),
@@ -51,6 +70,7 @@ impl Object {
             ExpandedObject::Namespace(n) => n.gc_mark(mark),
             ExpandedObject::HeapObject(h) => h.gc_mark(mark),
             ExpandedObject::Function(func) => func.gc_mark(mark),
+            ExpandedObject::QuietError(e) => e.gc_mark(mark),
         }
     }
     /// This object represents the boolean `false`, or the null-pointer.
@@ -93,14 +113,32 @@ impl Object {
         }
     }
     pub fn equal(self, other: Object) -> bool {
-        match (ExpandedObject::from(self), ExpandedObject::from(other)) {
+        match (self.expand_quiet(), other.expand_quiet()) {
             (ExpandedObject::Reference(r), _) => other.equal(*r),
             (_, ExpandedObject::Reference(r)) => self.equal(*r),
             (ExpandedObject::Cons(a), ExpandedObject::Cons(b)) => *a == *b,
             (ExpandedObject::HeapObject(r), _) => other.equal(**r),
             (_, ExpandedObject::HeapObject(r)) => self.equal(**r),
-            (_, _) => self.eql(other),
+            _ => self.eql(other),
         }
+    }
+}
+
+impl ops::Try for Object {
+    type Ok = Object;
+    type Error = GcRef<Error>;
+    fn into_result(self) -> Result<Object, GcRef<Error>> {
+        if error::ErrorTag::Signaling.is_of_type(self.into_raw()) {
+            Err(unsafe { self.into_unchecked() })
+        } else {
+            Ok(self)
+        }
+    }
+    fn from_error(e: GcRef<Error>) -> Object {
+        Object::loud_error(e)
+    }
+    fn from_ok(o: Object) -> Object {
+        o
     }
 }
 
@@ -112,13 +150,13 @@ impl default::Default for Object {
 
 impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", ExpandedObject::from(*self))
+        write!(f, "{}", self.expand_quiet())
     }
 }
 
 impl fmt::Debug for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", ExpandedObject::from(*self))
+        write!(f, "{:?}", self.expand_quiet())
     }
 }
 
@@ -126,13 +164,14 @@ impl fmt::Display for ExpandedObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpandedObject::Float(n) => write!(f, "{}", n),
-            ExpandedObject::Reference(ref r) => write!(f, "{}", r),
-            ExpandedObject::Symbol(ref s) => write!(f, "{}", *s),
+            ExpandedObject::Reference(r) => write!(f, "{}", r),
+            ExpandedObject::Symbol(s) => write!(f, "{}", *s),
             ExpandedObject::Immediate(i) => write!(f, "{}", i),
-            ExpandedObject::Cons(ref c) => write!(f, "{}", c),
-            ExpandedObject::Namespace(ref n) => write!(f, "{}", n),
-            ExpandedObject::HeapObject(ref h) => write!(f, "{}", h),
-            ExpandedObject::Function(ref func) => write!(f, "{}", func),
+            ExpandedObject::Cons(c) => write!(f, "{}", c),
+            ExpandedObject::Namespace(n) => write!(f, "{}", n),
+            ExpandedObject::HeapObject(h) => write!(f, "{}", h),
+            ExpandedObject::Function(func) => write!(f, "{}", func),
+            ExpandedObject::QuietError(e) => write!(f, "{}", e),
         }
     }
 }
@@ -141,13 +180,14 @@ impl fmt::Debug for ExpandedObject {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             ExpandedObject::Float(n) => write!(f, "{:?}", n),
-            ExpandedObject::Reference(ref r) => write!(f, "{:?}", r),
-            ExpandedObject::Symbol(ref s) => write!(f, "{:?}", **s),
+            ExpandedObject::Reference(r) => write!(f, "{:?}", r),
+            ExpandedObject::Symbol(s) => write!(f, "{:?}", *s),
             ExpandedObject::Immediate(i) => write!(f, "{:?}", i),
-            ExpandedObject::Cons(ref c) => write!(f, "{:?}", *c),
-            ExpandedObject::Namespace(ref n) => write!(f, "{:?}", *n),
-            ExpandedObject::HeapObject(ref h) => write!(f, "{:?}", *h),
-            ExpandedObject::Function(ref func) => write!(f, "{:?}", *func),
+            ExpandedObject::Cons(c) => write!(f, "{:?}", *c),
+            ExpandedObject::Namespace(n) => write!(f, "{:?}", *n),
+            ExpandedObject::HeapObject(h) => write!(f, "{:?}", *h),
+            ExpandedObject::Function(func) => write!(f, "{:?}", *func),
+            ExpandedObject::QuietError(e) => write!(f, "{:?}", *e),
         }
     }
 }
@@ -158,9 +198,13 @@ impl convert::From<f64> for Object {
     }
 }
 
-impl convert::From<Object> for ExpandedObject {
-    fn from(obj: Object) -> ExpandedObject {
-        if f64::is_type(obj) {
+impl convert::TryFrom<Object> for ExpandedObject {
+    type Error = GcRef<Error>;
+    fn try_from(obj: Object) -> Result<ExpandedObject, GcRef<Error>> {
+        if error::ErrorTag::Signaling.is_of_type(obj.into_raw()) {
+            return Err(unsafe { obj.into_unchecked() });
+        }
+        Ok(if f64::is_type(obj) {
             ExpandedObject::Float(unsafe { obj.into_unchecked() })
         } else if <GcRef<Cons>>::is_type(obj) {
             ExpandedObject::Cons(unsafe { obj.into_unchecked() })
@@ -176,9 +220,11 @@ impl convert::From<Object> for ExpandedObject {
             ExpandedObject::HeapObject(unsafe { obj.into_unchecked() })
         } else if <GcRef<Function>>::is_type(obj) {
             ExpandedObject::Function(unsafe { obj.into_unchecked() })
+        } else if <GcRef<Error>>::is_type(obj) {
+            ExpandedObject::QuietError(unsafe { obj.into_unchecked() })
         } else {
             unreachable!()
-        }
+        })
     }
 }
 
@@ -203,4 +249,5 @@ pub enum ExpandedObject {
     Namespace(GcRef<Namespace>),
     HeapObject(GcRef<HeapObject>),
     Function(GcRef<Function>),
+    QuietError(GcRef<Error>),
 }

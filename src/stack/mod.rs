@@ -1,10 +1,10 @@
 use prelude::*;
-use std::{borrow::BorrowMut,
-          collections::HashMap,
-          ops::IndexMut,
-          sync::{atomic::{AtomicUsize, Ordering},
-                 Mutex,
-                 RwLock}};
+use std::{
+    borrow::BorrowMut, collections::HashMap, ops::IndexMut,
+    sync::{
+        atomic::{AtomicUsize, Ordering}, Mutex, RwLock,
+    },
+};
 
 const STACK_CAPACITY: usize = 128;
 
@@ -56,15 +56,6 @@ pub fn nth_arg(n: usize) -> Result<Reference, ArgIndexError> {
     })
 }
 
-pub fn close_stack_frame() {
-    with_stack(|s| {
-        let n_args: usize = unsafe { s.pop().unwrap().into_unchecked() };
-        for _ in 0..n_args {
-            s.pop().unwrap();
-        }
-    })
-}
-
 pub fn close_stack_frame_and_return(ret_val: Object) {
     with_stack(|s| {
         let n_args: usize = unsafe { s.pop().unwrap().into_unchecked() };
@@ -103,7 +94,7 @@ where
 /// value and immediately reference it.
 ///
 /// Future improvement: A single method which combines `push` and
-/// `ref_top` with only one call to `STACK.with`
+/// `ref_top` with only one call to `with_stack`
 pub fn ref_top() -> Reference {
     with_stack(|stack| {
         if stack.is_empty() {

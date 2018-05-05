@@ -6,8 +6,9 @@
 //! were all seperate traits, this module contained the latter two.
 
 use gc::{self, GarbageCollected};
-use std::{sync::{self, atomic, mpsc, Mutex},
-          thread};
+use std::{
+    sync::{self, atomic, mpsc, Mutex}, thread,
+};
 use types::{ExpandedObject, Object};
 
 /// The allocator's stack size, in bytes. This doesn't need to be
@@ -94,7 +95,7 @@ pub enum DeallocError {
 /// during garbage collection on an object which appears in
 /// `ALLOCED_OBJECTS` and which `should_dealloc`.
 pub unsafe fn deallocate(obj: Object) -> Result<(), DeallocError> {
-    match ExpandedObject::from(obj) {
+    match obj.expand_quiet() {
         ExpandedObject::Float(_) | ExpandedObject::Immediate(_) | ExpandedObject::Reference(_) => {
             Err(DeallocError::ImmediateType)?
         }
@@ -103,6 +104,7 @@ pub unsafe fn deallocate(obj: Object) -> Result<(), DeallocError> {
         ExpandedObject::Namespace(n) => GarbageCollected::deallocate(n),
         ExpandedObject::HeapObject(h) => GarbageCollected::deallocate(h),
         ExpandedObject::Function(f) => GarbageCollected::deallocate(f),
+        ExpandedObject::QuietError(e) => GarbageCollected::deallocate(e),
     }
     Ok(())
 }

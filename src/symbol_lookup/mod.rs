@@ -48,7 +48,7 @@ thread_local! {
 #[derive(Fail, Debug)]
 #[fail(display = "The symbol {} is unbound.", sym)]
 pub struct UnboundSymbolError {
-    sym: GcRef<Symbol>,
+    pub sym: GcRef<Symbol>,
 }
 
 /// See `ENV_REF_COUNTS` for documentation.
@@ -112,9 +112,9 @@ pub fn gc_mark_scope(m: usize) {
     }
 }
 
-pub fn with_global_env<F, T>(env: GcRef<Namespace>, fun: F) -> Result<T, EvaluatorError>
+pub fn with_global_env<F>(env: GcRef<Namespace>, fun: F) -> Object
 where
-    F: FnOnce() -> Result<T, EvaluatorError>,
+    F: FnOnce() -> Object,
 {
     stack::push(Object::from(global_env()))?;
     set_global_env(env);
@@ -164,9 +164,9 @@ where
 ///
 /// would error, as references to `x` within the `cond` block would be
 /// undefined.
-pub fn in_parent_env<F, T>(fun: F) -> Result<T, EvaluatorError>
+pub fn in_parent_env<F>(fun: F) -> Object
 where
-    F: FnOnce() -> Result<T, EvaluatorError>,
+    F: FnOnce() -> Object,
 {
     stack::push(Object::from({
         ENV_STACK.with(|s| {
@@ -176,13 +176,15 @@ where
         })
     }))?;
     let res = fun();
-    {
-        ENV_STACK.with(|s| -> Result<(), EvaluatorError> {
-            s.borrow_mut()
-                .push(unsafe { stack::pop()?.into_unchecked() });
-            Ok(())
-        })?;
-    }
+    let second_res = ENV_STACK.with(|s| -> Result<(), EvaluatorError> {
+        s.borrow_mut()
+            .push(unsafe { stack::pop()?.into_unchecked() });
+        Ok(())
+    });
+
+    res?;
+    second_res?;
+
     res
 }
 

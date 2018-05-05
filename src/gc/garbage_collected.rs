@@ -3,10 +3,9 @@
 
 use super::{GcMark, GcRef};
 use allocate::add_to_alloced;
-use std::{alloc::{self, Alloc},
-          convert,
-          ptr::{self, NonNull},
-          sync::atomic::Ordering};
+use std::{
+    alloc::{self, Alloc}, convert, ptr::{self, NonNull}, sync::atomic::Ordering,
+};
 use types::Object;
 
 /// All heap-allocated `Object`s implement this trait.

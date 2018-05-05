@@ -1,3 +1,6 @@
+#![feature(try_trait)]
+#![feature(never_type)]
+#![feature(try_from)]
 #![feature(specialization)]
 #![feature(allocator_api)]
 
@@ -19,7 +22,7 @@ pub(crate) mod printer;
 pub(crate) mod reader;
 pub mod repl;
 mod stack;
-pub(crate) mod symbol_lookup;
+pub mod symbol_lookup;
 pub mod types;
 
 pub use repl::repl;

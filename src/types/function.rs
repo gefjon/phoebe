@@ -46,7 +46,7 @@ impl Function {
     pub fn make_special_form(
         name: GcRef<Symbol>,
         arglist: List,
-        body: &'static Fn() -> Result<Object, EvaluatorError>,
+        body: &'static Fn() -> Object,
         env: GcRef<Namespace>,
     ) -> Result<Function, ConversionError> {
         Ok(Function {
@@ -61,7 +61,7 @@ impl Function {
     pub fn make_builtin(
         name: GcRef<Symbol>,
         arglist: List,
-        body: &'static Fn() -> Result<Object, EvaluatorError>,
+        body: &'static Fn() -> Object,
         env: GcRef<Namespace>,
     ) -> Result<Function, ConversionError> {
         Ok(Function {
@@ -79,26 +79,7 @@ impl Function {
             ..self
         }
     }
-    pub fn call_to_reference(&self, args: List) -> Result<Reference, EvaluatorError> {
-        let args = if self.should_evaluate_args() {
-            let mut evaled_args = List::nil();
-            for a in args {
-                evaled_args = evaled_args.push(a.evaluate()?);
-            }
-            evaled_args
-        } else {
-            args
-        };
-
-        let env = self.build_env(args)?;
-        let res = symbol_lookup::with_env(env, || self.body.evaluate());
-        let second_res = self.end_stack_frame();
-
-        let obj = second_res.map_err(EvaluatorError::from).and(res)?;
-        Ok(Reference::try_convert_from(obj)?)
-    }
-
-    pub fn call(&self, args: List) -> Result<Object, EvaluatorError> {
+    pub fn call(&self, args: List) -> Object {
         let args = if self.should_evaluate_args() {
             let mut evaled_args = List::nil();
             for a in args {
@@ -111,17 +92,23 @@ impl Function {
 
         let env = self.build_env(args)?;
         let res = symbol_lookup::with_env(env, || {
-            self.body.evaluate().map(|o| {
-                if let Some(r) = Reference::maybe_from(o) {
-                    *r
+            let mut o = self.body.evaluate()?;
+            while let Some(r) = Reference::maybe_from(o) {
+                if env.contains_stack_ref(r) {
+                    o = *r;
                 } else {
-                    o
+                    break;
                 }
-            })
+            }
+            o
         });
         let second_res = self.end_stack_frame();
 
-        second_res.map_err(EvaluatorError::from).and(res)
+        res?;
+
+        second_res?;
+
+        res
     }
     fn should_evaluate_args(&self) -> bool {
         if let FunctionBody::SpecialForm(_) = self.body {
@@ -266,8 +253,8 @@ pub struct Function {
 
 enum FunctionBody {
     Source(List),
-    Builtin(&'static Fn() -> Result<Object, EvaluatorError>),
-    SpecialForm(&'static Fn() -> Result<Object, EvaluatorError>),
+    Builtin(&'static Fn() -> Object),
+    SpecialForm(&'static Fn() -> Object),
 }
 
 impl fmt::Display for FunctionBody {
@@ -281,16 +268,16 @@ impl fmt::Display for FunctionBody {
 }
 
 impl Evaluate for FunctionBody {
-    fn evaluate(&self) -> Result<Object, EvaluatorError> {
+    fn evaluate(&self) -> Object {
         match *self {
             FunctionBody::Source(l) => {
                 let mut res = Object::nil();
                 for clause in l {
                     res = clause.evaluate()?;
                 }
-                Ok(res)
+                res
             }
-            FunctionBody::Builtin(b) | FunctionBody::SpecialForm(b) => b(),
+            FunctionBody::Builtin(b) | FunctionBody::SpecialForm(b) => b()?,
         }
     }
 }

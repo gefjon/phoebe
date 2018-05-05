@@ -146,6 +146,14 @@ impl Default for Namespace {
 }
 
 impl Namespace {
+    pub fn contains_stack_ref(&self, find_me: Reference) -> bool {
+        match *self {
+            Namespace::Stack { ref table, .. } => {
+                table.read().unwrap().values().any(|&r| r == find_me)
+            }
+            _ => false,
+        }
+    }
     pub fn lowest_parent<'any>(mut me: GcRef<Namespace>) -> &'any mut Option<GcRef<Namespace>> {
         loop {
             match *me {
@@ -301,9 +309,7 @@ impl GarbageCollected for Namespace {
     fn alloc_one_and_initialize(n: Namespace) -> ::std::ptr::NonNull<Namespace> {
         use std::alloc::{Alloc, Global};
         use std::ptr;
-        let nn = Global
-            .alloc_one::<Namespace>()
-            .unwrap_or_else(|_| Global.oom());
+        let nn = Global.alloc_one::<Namespace>().unwrap();
         let p = nn.as_ptr();
         unsafe { ptr::write(p, n) };
         nn

@@ -41,11 +41,7 @@ impl GarbageCollected for Symbol {
         let layout = Symbol::make_layout(text.len());
 
         #[cfg_attr(feature = "cargo-clippy", allow(cast_ptr_alignment))]
-        let pointer = match unsafe { Global.alloc(layout) } {
-            Ok(p) => p,
-            Err(_) => Global.oom(),
-        }.as_ptr() as *mut Symbol;
-
+        let pointer = unsafe { Global.alloc(layout) }.unwrap().as_ptr() as *mut Symbol;
         let sym_ref = unsafe { &mut *pointer };
         sym_ref.gc_marking = GcMark::default();
         sym_ref.length = text.len();
@@ -153,20 +149,12 @@ impl FromUnchecked<Object> for GcRef<Symbol> {
 }
 
 impl Evaluate for Symbol {
-    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
-        if self.is_self_evaluating() {
-            return Err(EvaluatorError::CannotBeReferenced);
-        }
-        Ok(symbol_lookup::lookup_symbol(unsafe {
-            GcRef::from_ptr(self as *const Self as *mut Self)
-        })?)
-    }
-    fn evaluate(&self) -> Result<Object, EvaluatorError> {
+    fn evaluate(&self) -> Object {
         let gc_r = unsafe { GcRef::from_ptr(self as *const Self as *mut Self) };
         if self.is_self_evaluating() {
-            return Ok(Object::from(gc_r));
+            return Object::from(gc_r);
         }
-        Ok(*(symbol_lookup::lookup_symbol(gc_r)?))
+        Object::from(symbol_lookup::lookup_symbol(gc_r)?)
     }
 }
 
@@ -185,5 +173,9 @@ mod test {
     #[test]
     fn symbol_type_name() {
         assert_eq!(format!("{}", GcRef::<Symbol>::type_name()), "symbol");
+        assert_eq!(
+            GcRef::<Symbol>::type_name(),
+            ::symbol_lookup::make_symbol(b"symbol")
+        );
     }
 }

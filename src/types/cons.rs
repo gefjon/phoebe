@@ -47,19 +47,12 @@ impl Cons {
 }
 
 impl Evaluate for Cons {
-    fn evaluate(&self) -> Result<Object, EvaluatorError> {
+    fn evaluate(&self) -> Object {
         let mut l =
             List::try_convert_from(unsafe { GcRef::from_ptr(self as *const Cons as *mut Cons) })?;
         let f = l.next().unwrap();
         let func = <GcRef<Function>>::try_convert_from(f.evaluate()?)?;
         func.call(l)
-    }
-    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
-        let mut l =
-            List::try_convert_from(unsafe { GcRef::from_ptr(self as *const Cons as *mut Cons) })?;
-        let f = l.next().unwrap();
-        let func = <GcRef<Function>>::try_convert_from(f.evaluate()?)?;
-        func.call_to_reference(l)
     }
 }
 

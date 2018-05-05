@@ -91,15 +91,14 @@ where
                 return Ok(());
             }
             ReadResult::Ok => {
-                if let Err(e) = unsafe { eval_from_stack() } {
-                    writeln!(error, "{}", e)?;
-                } else {
-                    // eval_from_stack pushes its return value to the
-                    // stack, but without a frame_length. Adding that
-                    // frame_length turns it into the stack frame for
-                    // `print_from_stack`.
-                    stack::push(1usize.into())?;
-                    writeln!(output, "{}", unsafe { print_from_stack() })?;
+                unsafe { eval_from_stack() }
+                // eval_from_stack pushes its return value to the
+                // stack, but without a frame_length. Adding that
+                // frame_length turns it into the stack frame for
+                // `print_from_stack`.
+                match unsafe { print_from_stack() } {
+                    Ok(o) => writeln!(output, "{}", o)?,
+                    Err(e) => writeln!(error, "{}", e)?,
                 }
             }
             ReadResult::ReadError(e) => {
@@ -120,7 +119,7 @@ pub mod test_utilities {
     pub enum TestIOPairsError {
         #[fail(display = "Phoebe errored internally: {}", _0)]
         InternalError(String),
-        #[fail(display = "Expected {} to yeild  {} but found {}", input, expected, found)]
+        #[fail(display = "Expected {} to yield {} but found {}", input, expected, found)]
         WrongOutput {
             input: String,
             found: String,

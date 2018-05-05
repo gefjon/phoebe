@@ -19,11 +19,11 @@ pub fn make_math_builtins() {
                 for n in nums {
                     let n = PhoebeNumber::try_convert_from(n)?;
                     if n != first {
-                        return Ok(Object::from(false));
+                        return Object::from(false);
                     }
                 }
             }
-            Ok(Object::from(true))
+            Object::from(true)
         };
         "+" (&rest nums) -> {
             let mut result = PhoebeNumber::from(0);
@@ -32,7 +32,7 @@ pub fn make_math_builtins() {
                 let n = PhoebeNumber::try_convert_from(n)?;
                 result += n;
             }
-            Ok(result.into())
+            result.into()
         };
         "*" (&rest nums) -> {
             let mut result = PhoebeNumber::from(1);
@@ -41,32 +41,32 @@ pub fn make_math_builtins() {
                 let n: PhoebeNumber = n.try_convert_into()?;
                 result *= n;
             }
-            Ok(Object::from(result))
+            Object::from(result)
         };
         "-" (number &rest others) -> {
             let mut number = PhoebeNumber::try_convert_from(*number)?;
             if others.nilp() {
-                Ok(Object::from(-number))
+                Object::from(-number)
             } else {
                 let others = List::try_convert_from(*others)?;
                 for n in others {
                     let n: PhoebeNumber = n.try_convert_into()?;
                     number -= n;
                 }
-                Ok(Object::from(number))
+                Object::from(number)
             }
         };
         "/" (number &rest others) -> {
             let mut number = PhoebeNumber::try_convert_from(*number)?;
             if others.nilp() {
-                Ok(Object::from(number.recip()))
+                Object::from(number.recip())
             } else {
                 let others = List::try_convert_from(*others)?;
                 for n in others {
                     let n: PhoebeNumber = n.try_convert_into()?;
                     number /= n;
                 }
-                Ok(Object::from(number))
+                Object::from(number)
             }
         };
     }

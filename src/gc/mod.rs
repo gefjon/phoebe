@@ -9,10 +9,12 @@ use allocate::deallocate;
 use allocate::ALLOCED_OBJECTS;
 use builtins::make_builtins_once;
 use stack::gc_mark_stack;
-use std::{default::Default,
-          sync::{atomic::{AtomicUsize, Ordering},
-                 MutexGuard},
-          thread::{self, JoinHandle}};
+use std::{
+    default::Default, sync::{
+        atomic::{AtomicUsize, Ordering}, MutexGuard,
+    },
+    thread::{self, JoinHandle},
+};
 use types::Object;
 
 #[cfg(test)]

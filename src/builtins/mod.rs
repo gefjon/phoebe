@@ -2,6 +2,7 @@
 //! functions and special forms. Phoebe is largely useless until that
 //! function is called.
 
+use evaluator::eval_to_reference;
 use prelude::*;
 use std::sync::{Once, ONCE_INIT};
 
@@ -10,6 +11,7 @@ static ONCE_BUILTINS: Once = ONCE_INIT;
 #[macro_use]
 mod macros;
 
+mod error_handling;
 mod math_builtins;
 mod namespacing;
 
@@ -33,7 +35,7 @@ fn make_builtins() {
     info!("Making builtins.");
     special_forms! {
         "cond" (&rest clauses) -> {
-            symbol_lookup::in_parent_env(|| {
+            symbol_lookup::in_parent_env(|| -> Object {
                 for clause in List::try_convert_from(*clauses)? {
                     let c: GcRef<Cons> = clause.try_convert_into()?;
                     let Cons { car, cdr, .. } = *c;
@@ -41,12 +43,12 @@ fn make_builtins() {
                         let c: GcRef<Cons> = cdr.try_convert_into()?;
                         let Cons { car: cdrcar, cdr: tail, .. } = *c;
                         if !tail.nilp() {
-                            return Err(EvaluatorError::ImproperList);
+                            return EvaluatorError::ImproperList.into();
                         }
                         return cdrcar.evaluate();
                     }
                 }
-                Ok(Object::nil())
+                Object::nil()
             })
         };
         "if" (test then &rest elses) -> {
@@ -58,7 +60,7 @@ fn make_builtins() {
                     for clause in List::try_convert_from(*elses)? {
                         res = clause.evaluate()?;
                     }
-                    Ok(res)
+                    res
                 }
             })
         };
@@ -69,9 +71,9 @@ fn make_builtins() {
                     for clause in List::try_convert_from(*clauses)? {
                         res = clause.evaluate()?;
                     }
-                    Ok(res)
+                    res
                 } else {
-                    Ok(Object::nil())
+                    Object::nil()
                 }
             })
         };
@@ -83,7 +85,7 @@ fn make_builtins() {
                         res = clause.evaluate()?;
                     }
                 }
-                Ok(res)
+                res
             })
         };
         "let" (bindings &rest body) -> {
@@ -97,14 +99,14 @@ fn make_builtins() {
                         let c: GcRef<Cons> = cdr.try_convert_into()?;
                         let Cons { car: value, cdr: tail, .. } = *c;
                         if !tail.nilp() {
-                            return Err(EvaluatorError::ImproperList);
+                            return EvaluatorError::ImproperList.into();
                         }
                         scope.push((
                             symbol.try_convert_into()?,
                             value.evaluate()?
                         ));
                     }
-                    Ok(())
+                    Object::nil()
                 })?;
 
                 Namespace::create_let_env(&scope)
@@ -112,46 +114,43 @@ fn make_builtins() {
 
             let body = List::try_convert_from(*body)?;
             symbol_lookup::with_env(env, || {
-                let mut res = Ok(Object::nil());
+                let mut res = Object::nil();
                 for body_clause in body {
-                    res = body_clause.evaluate();
-                    if res.is_err() {
-                        return res;
-                    }
+                    res = body_clause.evaluate()?;
                 }
                 res
             })
         };
         "lambda" (arglist &rest body) -> {
-            Ok(Object::from(Function::allocate(
+            Object::from(Function::allocate(
                 Function::make_lambda(
                     (*arglist).try_convert_into()?,
                     (*body).try_convert_into()?,
                     symbol_lookup::scope_for_a_new_function()
                 )?
-            )))
+            ))
         };
         "defvar" (name &optional value) -> {
             let sym = <GcRef<Symbol>>::try_convert_from(*name)?;
             let mut place = symbol_lookup::make_from_global_namespace(sym);
             if place.definedp() {
-                Ok(Object::from(place))
+                Object::from(place)
             } else {
                 let value: Object = *value;
                 let value: Object = symbol_lookup::in_parent_env(|| {
                     if value.definedp() {
                         value.evaluate()
                     } else {
-                        Ok(Object::uninitialized())
+                        Object::uninitialized()
                     }
                 })?;
                 *place = value;
-                Ok(Object::from(place))
+                Object::from(place)
             }
         };
         "boundp" (symbol) -> {
             let sym = <GcRef<Symbol>>::try_convert_from(*symbol)?;
-            Ok(symbol_lookup::get_from_global_namespace(sym).is_some().into())
+            symbol_lookup::get_from_global_namespace(sym).is_some().into()
         };
         "defun" (name arglist &rest body) -> {
             let name = (*name).try_convert_into()?;
@@ -163,39 +162,40 @@ fn make_builtins() {
                 )?.with_name(name)
             ));
             *(symbol_lookup::make_from_global_namespace(name)) = func;
-            Ok(func)
+            func
         };
         "setf" (place value) -> {
-            let mut place = Evaluate::eval_to_reference(&*place)?;
+            let mut place: Reference = eval_to_reference(*place).try_convert_into()?;
             let value = *value;
             let value = symbol_lookup::in_parent_env(|| value.evaluate())?;
             *place = value;
-            Ok(value)
+            value
         };
         "quote" (x) -> {
-            Ok(*x)
+            *x
         };
     };
 
     builtin_functions! {
         "cons" (first second) -> {
-            Ok(Object::from(
+            Object::from(
                 Cons::allocate(
                     Cons::new(*first, *second)
                 )
-            ))
+            )
         };
         "list" (&rest elements) -> {
-            Ok(*elements)
+            *elements
         };
         "debug" (obj) -> {
             println!("{:?}", *obj);
-            Ok(*obj)
+            *obj
         };
     };
 
     namespacing::make_namespace_builtins();
-
+    error_handling::make_error_builtins();
     math_builtins::make_math_builtins();
+
     info!("Finished making builtin functions.");
 }

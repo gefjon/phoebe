@@ -1,8 +1,9 @@
-pub(crate) use evaluator::{Evaluate, EvaluatorError};
+pub(crate) use evaluator::Evaluate;
 pub(crate) use stack;
 pub(crate) use symbol_lookup;
 pub use types::cons::Cons;
 pub use types::conversions::*;
+pub use types::error::{Error, EvaluatorError};
 pub use types::function::Function;
 pub use types::heap_object::HeapObject;
 pub use types::immediate::Immediate;

@@ -45,7 +45,7 @@ pub enum ObjectTag {
     Symbol,
     // String,
     Function,
-    // Error,
+    Error,
     Namespace,
     Immediate,
     Reference,

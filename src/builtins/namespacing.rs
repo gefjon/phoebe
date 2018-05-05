@@ -15,7 +15,7 @@ pub fn make_namespace_builtins() {
             } else {
                 None
             };
-            let nmspc: Option<Result<Namespace, EvaluatorError>> =
+            let nmspc: Option<Result<Namespace, GcRef<Error>>> =
                 contents.map(|c| {
                     let mut pairs = Vec::<(GcRef<Symbol>, Object)>::new();
 
@@ -57,14 +57,14 @@ pub fn make_namespace_builtins() {
                 *r = nmspc;
             };
 
-            Ok(nmspc)
+            nmspc
         };
         "nref" (namespace symbol) -> {
             let mut namespace = <GcRef<Namespace>>::try_convert_from(
                 Evaluate::evaluate(&*namespace)?
             )?;
             let symbol = <GcRef<Symbol>>::try_convert_from(*symbol)?;
-            Ok(Object::from(namespace.make_sym_ref_search_parent(symbol)))
+            Object::from(namespace.make_sym_ref_search_parent(symbol))
         };
         "with-namespace" (namespace &rest body) -> {
             let namespace = <GcRef<Namespace>>::try_convert_from(
@@ -77,7 +77,7 @@ pub fn make_namespace_builtins() {
                     for clause in body {
                         res = Evaluate::evaluate(&clause)?;
                     }
-                    Ok(res)
+                    res
                 })
             })
         };

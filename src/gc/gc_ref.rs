@@ -2,12 +2,9 @@
 //! type, `GcRef`.
 
 use prelude::*;
-use std::{cmp,
-          convert,
-          fmt,
-          hash,
-          ops::{self, Deref},
-          ptr::NonNull};
+use std::{
+    cmp, convert, fmt, hash, ops::{self, Deref}, ptr::NonNull,
+};
 
 /// This type is `Copy`, `Send` and `Sync`, and denotes a reference to
 /// a garbage-collected object. It is very important that any such
@@ -123,10 +120,10 @@ where
     T: Evaluate,
     Object: convert::From<Self>,
 {
-    fn evaluate(&self) -> Result<Object, EvaluatorError> {
+    fn evaluate(&self) -> Object {
         self.deref().evaluate()
     }
-    fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
-        self.deref().eval_to_reference()
-    }
+    // fn eval_to_reference(&self) -> Result<Reference, EvaluatorError> {
+    //     self.deref().eval_to_reference()
+    // }
 }

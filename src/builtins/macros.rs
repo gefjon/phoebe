@@ -10,7 +10,7 @@ macro_rules! special_form {
             let body = Box::new(move || {
                 get_args!($($arg)*);
                 $blk
-            }) as Box<Fn() -> Result<Object, EvaluatorError>>;
+            }) as Box<Fn() -> Object>;
             let arglist = make_arglist!($($arg)*);
             let func = Function::allocate(
                 Function::make_special_form(
@@ -37,7 +37,7 @@ macro_rules! builtin_func {
             let body = Box::new(move || {
                 get_args!($($arg)*);
                 $blk
-            }) as Box<Fn() -> Result<Object, EvaluatorError>>;
+            }) as Box<Fn() -> Object>;
             let arglist = make_arglist!($($arg)*);
             let func = Function::allocate(
                 Function::make_builtin(
