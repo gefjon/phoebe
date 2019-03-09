@@ -1,5 +1,5 @@
+use crate::types::{list, Object};
 use std::iter::{Iterator, Peekable};
-use types::{list, Object};
 
 mod read_num;
 use self::read_num::parse_to_object;
@@ -210,7 +210,7 @@ mod test {
         assert_eq!(read(iter).unwrap().unwrap(), Object::from(0.5f64));
         assert_eq!(
             read(iter).unwrap().unwrap(),
-            Object::from(::symbol_lookup::make_symbol(b"foo"))
+            Object::from(crate::symbol_lookup::make_symbol(b"foo"))
         );
         assert!(iter.next().is_none());
     }
@@ -218,15 +218,16 @@ mod test {
     fn read_list() {
         let input = b"(1 2 3 4 5)";
         let iter = &mut input.iter().cloned().peekable();
-        let list: ::types::list::List = [
+        let list: crate::types::list::List = [
             Object::from(1i32),
             Object::from(2i32),
             Object::from(3i32),
             Object::from(4i32),
             Object::from(5i32),
-        ].iter()
-            .cloned()
-            .collect();
+        ]
+        .iter()
+        .cloned()
+        .collect();
 
         let res = read(iter).unwrap().unwrap();
         println!("read: {:?}", res);

@@ -1,6 +1,6 @@
-use prelude::*;
+use crate::prelude::*;
+use crate::symbol_lookup::make_symbol;
 use std::sync::atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT};
-use symbol_lookup::make_symbol;
 
 static GENSYM_COUNT: AtomicUsize = ATOMIC_USIZE_INIT;
 

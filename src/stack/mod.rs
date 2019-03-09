@@ -1,8 +1,11 @@
-use prelude::*;
+use crate::prelude::*;
 use std::{
-    borrow::BorrowMut, collections::HashMap, ops::IndexMut,
+    borrow::BorrowMut,
+    collections::HashMap,
+    ops::IndexMut,
     sync::{
-        atomic::{AtomicUsize, Ordering}, Mutex, RwLock,
+        atomic::{AtomicUsize, Ordering},
+        Mutex, RwLock,
     },
 };
 
@@ -23,8 +26,7 @@ lazy_static! {
 #[derive(Fail, Debug)]
 #[fail(
     display = "Attempted to reference argument {} but only found {}.",
-    attempted_index,
-    stack_frame_length
+    attempted_index, stack_frame_length
 )]
 pub struct ArgIndexError {
     pub attempted_index: usize,
@@ -117,7 +119,10 @@ pub fn gc_mark_stack(m: usize) {
 }
 
 #[derive(Fail, Debug)]
-#[fail(display = "Stack overflow after {} elements with capacity {}", stack_size, stack_capacity)]
+#[fail(
+    display = "Stack overflow after {} elements with capacity {}",
+    stack_size, stack_capacity
+)]
 pub struct StackOverflowError {
     stack_size: usize,
     stack_capacity: usize,

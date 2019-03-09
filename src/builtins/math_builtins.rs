@@ -1,6 +1,6 @@
 //! Builtin functions related to mathematical and arithmetic ops.
 
-use prelude::*;
+use crate::prelude::*;
 
 /// This function is called by `make_builtins`. It does no checking
 /// for whether these functions have already been built, so calling it

@@ -1,9 +1,9 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
-use prelude::*;
+use crate::prelude::*;
+use crate::symbol_lookup::make_symbol;
 use std::alloc::{Alloc, Global, Layout};
 use std::ptr::NonNull;
 use std::{convert, fmt, hash, mem, ptr, slice, str};
-use symbol_lookup::make_symbol;
 
 lazy_static! {
     static ref SYMBOL_TYPE_NAME: GcRef<Symbol> = { make_symbol(b"symbol") };
@@ -84,7 +84,8 @@ impl Symbol {
         Layout::from_size_align(
             mem::size_of::<Symbol>() + len - 1,
             mem::align_of::<Symbol>(),
-        ).unwrap()
+        )
+        .unwrap()
     }
     pub fn len(&self) -> usize {
         self.length
@@ -161,7 +162,7 @@ impl Evaluate for Symbol {
 #[cfg(test)]
 mod test {
     use super::*;
-    use types::Object;
+    use crate::types::Object;
     #[test]
     fn tag_and_untag() {
         unsafe {
@@ -175,7 +176,7 @@ mod test {
         assert_eq!(format!("{}", GcRef::<Symbol>::type_name()), "symbol");
         assert_eq!(
             GcRef::<Symbol>::type_name(),
-            ::symbol_lookup::make_symbol(b"symbol")
+            crate::symbol_lookup::make_symbol(b"symbol")
         );
     }
 }

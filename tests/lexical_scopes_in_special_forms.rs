@@ -4,9 +4,9 @@ extern crate phoebe;
 #[test]
 fn cond_lexical_scoping() {
     test_pairs! {
-        "(defvar cond-lexical-scoping-param 5)" => "5";
-        "(let ((cond-lexical-scoping-param 3)) \
-           (cond (t cond-lexical-scoping-param)))" => "3";
+    "(defvar cond-lexical-scoping-param 5)" => "5";
+    "(let ((cond-lexical-scoping-param 3)) \
+       (cond (t cond-lexical-scoping-param)))" => "3";
     }
 }
 

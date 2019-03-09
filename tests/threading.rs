@@ -10,14 +10,16 @@ fn do_two_things_in_different_threads() {
             ("(defvar x 5)", "5\n"),
             ("(defun return-x () x)", "[function return-x]\n"),
             ("(list (return-x) x)", "(5 5)\n"),
-        ]).unwrap();
+        ])
+        .unwrap();
     });
     let second_child = thread::spawn(move || {
         test_input_output_pairs(&[
             ("(defvar y 2)", "2\n"),
             ("(defun return-y () y)", "[function return-y]\n"),
             ("(list (return-y) y)", "(2 2)\n"),
-        ]).unwrap();
+        ])
+        .unwrap();
     });
     first_child.join().expect("Thread first_child paniced!");
     second_child.join().expect("Thread second_child paniced!");
@@ -49,7 +51,8 @@ fn many_threads_at_once() {
                 &format!("make-a-thread-{}", sym),
                 &format!("{}\n", sym * sym),
             ),
-        ]).unwrap();
+        ])
+        .unwrap();
     }
     fn make_a_thread(sym: usize) -> JoinHandle<()> {
         spawn(move || thread_inner(sym))

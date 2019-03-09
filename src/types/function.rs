@@ -1,8 +1,8 @@
-use prelude::*;
-use stack::StackUnderflowError;
+use crate::prelude::*;
+use crate::stack::StackUnderflowError;
+use crate::types::pointer_tagging::{ObjectTag, PointerTag};
+use crate::types::ConversionError;
 use std::{collections::HashMap, convert, fmt};
-use types::pointer_tagging::{ObjectTag, PointerTag};
-use types::ConversionError;
 
 lazy_static! {
     static ref FUNCTION_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"function") };
@@ -118,7 +118,7 @@ impl Function {
         }
     }
     fn build_env(&self, mut args: List) -> Result<GcRef<Namespace>, EvaluatorError> {
-        use stack::{end_stack_frame, push, ref_top};
+        use crate::stack::{end_stack_frame, push, ref_top};
 
         let mut arg_type = ArgType::Mandatory;
         let mut n_args: usize = 0;
@@ -236,7 +236,7 @@ impl Function {
         Ok(Namespace::create_stack_env(&symbol_lookup_buf, self.env))
     }
     fn end_stack_frame(&self) -> Result<(), StackUnderflowError> {
-        use stack::end_stack_frame;
+        use crate::stack::end_stack_frame;
 
         end_stack_frame(self.stack_frame_length)
     }

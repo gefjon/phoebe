@@ -1,5 +1,5 @@
-use symbol_lookup::make_symbol;
-use types::Object;
+use crate::symbol_lookup::make_symbol;
+use crate::types::Object;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Sign {
@@ -54,10 +54,12 @@ impl<'a> DecimalFp<'a> {
 
         let combined = integral + fractional;
 
-        combined * power_of_ten(self.exp as i16) * match self.sign {
-            Sign::Positive => 1.0,
-            Sign::Negative => -1.0,
-        }
+        combined
+            * power_of_ten(self.exp as i16)
+            * match self.sign {
+                Sign::Positive => 1.0,
+                Sign::Negative => -1.0,
+            }
     }
 }
 
@@ -238,7 +240,7 @@ fn simplify(decimal: &mut DecimalFp) {
 #[cfg(test)]
 mod test {
     use super::*;
-    use types::Object;
+    use crate::types::Object;
     /// We accept an error of `::std::f64::EPSILON * lhs`, which, in
     /// theory, means that the exact value or the next or previous
     /// floats are all acceptable.

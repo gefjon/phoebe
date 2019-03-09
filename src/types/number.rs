@@ -1,7 +1,7 @@
-use prelude::*;
+use crate::prelude::*;
+use crate::symbol_lookup::make_symbol;
+use crate::types::pointer_tagging;
 use std::{cmp, convert, ops};
-use symbol_lookup::make_symbol;
-use types::pointer_tagging;
 
 lazy_static! {
     static ref NUMBER_TYPE_NAME: GcRef<Symbol> = { make_symbol(b"number") };

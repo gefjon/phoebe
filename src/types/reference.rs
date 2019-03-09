@@ -1,5 +1,5 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
-use prelude::*;
+use crate::prelude::*;
 use std::{borrow, convert, fmt, ops};
 
 lazy_static! {

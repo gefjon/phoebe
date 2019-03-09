@@ -25,4 +25,4 @@ mod stack;
 pub mod symbol_lookup;
 pub mod types;
 
-pub use repl::repl;
+pub use crate::repl::repl;

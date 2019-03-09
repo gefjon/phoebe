@@ -25,7 +25,8 @@ fn throw_an_error() {
         unsafe { output.as_mut_vec() },
         unsafe { error.as_mut_vec() },
         false,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(error, expected_error);
     assert!(output.is_empty());
@@ -41,12 +42,12 @@ fn build_error_without_throw() {
 #[test]
 fn catch_an_error() {
     test_pairs! {
-        "(defun catch-an-error-error () \
-           (error (quote some-error) \
-           (quote error-description)))" => "[function catch-an-error-error]";
-        "(catch-an-error-error)" => "some-error: error-description";
-        "(catch-error (throw (catch-an-error-error)) \
-           e \
-           (quote caught-an-error))" => "caught-an-error";
+    "(defun catch-an-error-error () \
+       (error (quote some-error) \
+       (quote error-description)))" => "[function catch-an-error-error]";
+    "(catch-an-error-error)" => "some-error: error-description";
+    "(catch-error (throw (catch-an-error-error)) \
+       e \
+       (quote caught-an-error))" => "caught-an-error";
     }
 }

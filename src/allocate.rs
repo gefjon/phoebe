@@ -5,11 +5,12 @@
 //! away. Back when `GarbageCollected`, `Allocate` and `Deallocate`
 //! were all seperate traits, this module contained the latter two.
 
-use gc::{self, GarbageCollected};
+use crate::gc::{self, GarbageCollected};
+use crate::types::{ExpandedObject, Object};
 use std::{
-    sync::{self, atomic, mpsc, Mutex}, thread,
+    sync::{self, atomic, mpsc, Mutex},
+    thread,
 };
-use types::{ExpandedObject, Object};
 
 /// The allocator's stack size, in bytes. This doesn't need to be
 /// particularly large; the 2MiB default is excessive.

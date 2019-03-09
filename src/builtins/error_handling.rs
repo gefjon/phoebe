@@ -1,7 +1,7 @@
 //! Builtin functions and special forms related to throwing, catching
 //! and handling errors.
 
-use prelude::*;
+use crate::prelude::*;
 use std::ops::Try;
 
 pub fn make_error_builtins() {
@@ -23,13 +23,13 @@ pub fn make_error_builtins() {
         };
     }
     special_forms! {
-        "catch-error" (try bind &rest catch) -> {
+        "catch-error" (r#try bind &rest catch) -> {
             let bind: GcRef<Symbol> = (*bind).try_convert_into()?;
             let catch = List::try_convert_from(*catch)?;
 
             let mut env = None;
             match symbol_lookup::in_parent_env(|| {
-                match (*try).evaluate().into_result() {
+                match (*r#try).evaluate().into_result() {
                     Ok(o) => o,
                     Err(e) => {
                         let quiet = Object::quiet_error(e);

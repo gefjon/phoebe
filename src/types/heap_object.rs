@@ -1,9 +1,10 @@
-use prelude::*;
+use crate::prelude::*;
+use crate::types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt, ops};
-use types::pointer_tagging::{ObjectTag, PointerTag};
 
 lazy_static! {
-    static ref HEAP_OBJECT_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"heap-object") };
+    static ref HEAP_OBJECT_TYPE_NAME: GcRef<Symbol> =
+        { symbol_lookup::make_symbol(b"heap-object") };
 }
 
 #[derive(Debug)]

@@ -1,9 +1,9 @@
-use prelude::*;
-use stack::{ArgIndexError, StackOverflowError, StackUnderflowError};
+use crate::prelude::*;
+use crate::stack::{ArgIndexError, StackOverflowError, StackUnderflowError};
+use crate::symbol_lookup::UnboundSymbolError;
+use crate::types::conversions::ConversionError;
+use crate::types::pointer_tagging::{ObjectTag, PointerTag};
 use std::convert;
-use symbol_lookup::UnboundSymbolError;
-use types::conversions::ConversionError;
-use types::pointer_tagging::{ObjectTag, PointerTag};
 
 lazy_static! {
     static ref ERROR_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"error") };
@@ -92,7 +92,10 @@ pub enum EvaluatorError {
     #[fail(display = "{}", _0)]
     StackUnderflow(StackUnderflowError),
 
-    #[fail(display = "The count {} is not compatible with the arglist {}", found, arglist)]
+    #[fail(
+        display = "The count {} is not compatible with the arglist {}",
+        found, arglist
+    )]
     /// Functions which are passed incompatible numbers of arguments
     /// signal this error.
     BadArgCount { arglist: List, found: usize },
@@ -114,7 +117,8 @@ pub enum EvaluatorError {
     UnboundSymbol(UnboundSymbolError),
 
     #[fail(
-        display = "The key {} did not have an accompanying symbol when parsing key arguments.", key
+        display = "The key {} did not have an accompanying symbol when parsing key arguments.",
+        key
     )]
     UnaccompaniedKey { key: GcRef<Symbol> },
 
@@ -284,7 +288,8 @@ impl GarbageCollected for Error {
     type ConvertFrom = EvaluatorError;
     fn alloc_one_and_initialize(o: EvaluatorError) -> ::std::ptr::NonNull<Self> {
         use std::{
-            alloc::{Alloc, Global}, ptr,
+            alloc::{Alloc, Global},
+            ptr,
         };
         let nn = Global.alloc_one().unwrap();
         let p = nn.as_ptr();

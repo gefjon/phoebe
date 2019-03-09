@@ -1,9 +1,11 @@
 //! The definition and impls for Phoebe's main internal reference
 //! type, `GcRef`.
 
-use prelude::*;
+use crate::prelude::*;
 use std::{
-    cmp, convert, fmt, hash, ops::{self, Deref}, ptr::NonNull,
+    cmp, convert, fmt, hash,
+    ops::{self, Deref},
+    ptr::NonNull,
 };
 
 /// This type is `Copy`, `Send` and `Sync`, and denotes a reference to

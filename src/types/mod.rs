@@ -1,5 +1,5 @@
 use self::pointer_tagging::*;
-use prelude::*;
+use crate::prelude::*;
 use std::{convert, default, fmt, ops};
 
 pub mod cons;

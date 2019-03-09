@@ -1,5 +1,5 @@
-use prelude::*;
-use types::pointer_tagging::{self, PointerTag};
+use crate::prelude::*;
+use crate::types::pointer_tagging::{self, PointerTag};
 
 lazy_static! {
     static ref FLOAT_TYPE_NAME: GcRef<Symbol> = {
@@ -87,11 +87,12 @@ pub trait FromObject {
     /// A generalization of `is_type`; also returns `true` if `obj` is
     /// a `Reference` pointing to a correctly tagged `Self`.
     fn derefs_to(obj: Object) -> bool {
-        Self::is_type(obj) || if let Some(r) = Reference::maybe_from(obj) {
-            Self::derefs_to(*r)
-        } else {
-            false
-        }
+        Self::is_type(obj)
+            || if let Some(r) = Reference::maybe_from(obj) {
+                Self::derefs_to(*r)
+            } else {
+                false
+            }
     }
 }
 
@@ -222,7 +223,7 @@ impl FromObject for f64 {
 
 impl FromUnchecked<Object> for bool {
     unsafe fn from_unchecked(obj: Object) -> bool {
-        use types::immediate::ImmediateTag;
+        use crate::types::immediate::ImmediateTag;
 
         ImmediateTag::Bool.untag(obj.0) != 0
     }
@@ -256,7 +257,7 @@ impl FromObject for usize {
 
 impl FromUnchecked<Object> for i32 {
     unsafe fn from_unchecked(obj: Object) -> i32 {
-        use types::immediate::ImmediateTag;
+        use crate::types::immediate::ImmediateTag;
 
         (ImmediateTag::Integer.untag(obj.0) as u32) as i32
     }

@@ -1,8 +1,8 @@
-use builtins::make_builtins_once;
-use evaluator::eval_from_stack;
-use printer::print_from_stack;
-use reader::{read, ReaderError};
-use stack::{self, StackOverflowError};
+use crate::builtins::make_builtins_once;
+use crate::evaluator::eval_from_stack;
+use crate::printer::print_from_stack;
+use crate::reader::{read, ReaderError};
+use crate::stack::{self, StackOverflowError};
 use std::io::prelude::*;
 use std::{convert, io};
 
@@ -119,7 +119,10 @@ pub mod test_utilities {
     pub enum TestIOPairsError {
         #[fail(display = "Phoebe errored internally: {}", _0)]
         InternalError(String),
-        #[fail(display = "Expected {} to yield {} but found {}", input, expected, found)]
+        #[fail(
+            display = "Expected {} to yield {} but found {}",
+            input, expected, found
+        )]
         WrongOutput {
             input: String,
             found: String,

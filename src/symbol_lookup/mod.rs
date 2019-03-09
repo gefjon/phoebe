@@ -2,7 +2,7 @@
 //! `Symbol`s and converting those references into `Reference`s to
 //! `Object`s.
 
-use prelude::*;
+use crate::prelude::*;
 
 use std::collections::HashMap;
 use std::{cell, sync};

@@ -2,8 +2,8 @@
 //! functions and special forms. Phoebe is largely useless until that
 //! function is called.
 
-use evaluator::eval_to_reference;
-use prelude::*;
+use crate::evaluator::eval_to_reference;
+use crate::prelude::*;
 use std::sync::{Once, ONCE_INIT};
 
 static ONCE_BUILTINS: Once = ONCE_INIT;

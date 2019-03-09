@@ -1,6 +1,6 @@
-use prelude::*;
+use crate::prelude::*;
+use crate::types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{cmp, convert, fmt};
-use types::pointer_tagging::{ObjectTag, PointerTag};
 
 lazy_static! {
     static ref CONS_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"cons") };
@@ -123,8 +123,8 @@ impl GarbageCollected for Cons {
 #[cfg(test)]
 mod test {
     use super::*;
-    use gc::GarbageCollected;
-    use types::Object;
+    use crate::gc::GarbageCollected;
+    use crate::types::Object;
     #[test]
     fn format_a_cons() {
         let c = Cons::new(

@@ -1,6 +1,6 @@
-use prelude::*;
+use crate::prelude::*;
+use crate::types::pointer_tagging::{ObjectTag, PointerTag};
 use std::{convert, fmt};
-use types::pointer_tagging::{ObjectTag, PointerTag};
 
 const IMMEDIATE_TAG_MASK: u64 = 0xffff << 32;
 
@@ -173,11 +173,13 @@ impl convert::From<SpecialMarker> for Immediate {
 impl fmt::Display for Immediate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Immediate::Bool(b) => if b {
-                write!(f, "t")
-            } else {
-                write!(f, "nil")
-            },
+            Immediate::Bool(b) => {
+                if b {
+                    write!(f, "t")
+                } else {
+                    write!(f, "nil")
+                }
+            }
             Immediate::Integer(n) => write!(f, "{}", n),
             Immediate::UnsignedInt(n) => write!(f, "{}", n),
             Immediate::SpecialMarker(s) => write!(f, "{}", s),

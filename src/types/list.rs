@@ -1,6 +1,6 @@
-use prelude::*;
+use crate::prelude::*;
+use crate::types::pointer_tagging;
 use std::{cmp, convert, fmt, iter, mem};
-use types::pointer_tagging;
 
 lazy_static! {
     static ref LIST_TYPE_NAME: GcRef<Symbol> = { symbol_lookup::make_symbol(b"list") };

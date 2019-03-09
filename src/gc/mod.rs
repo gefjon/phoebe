@@ -5,17 +5,19 @@
 //! `Mutex<GcInfo>`, where `GcInfo` is a struct that maps
 //! `true`/`false` to "white" and "black".
 
-use allocate::deallocate;
-use allocate::ALLOCED_OBJECTS;
-use builtins::make_builtins_once;
-use stack::gc_mark_stack;
+use crate::allocate::deallocate;
+use crate::allocate::ALLOCED_OBJECTS;
+use crate::builtins::make_builtins_once;
+use crate::stack::gc_mark_stack;
+use crate::types::Object;
 use std::{
-    default::Default, sync::{
-        atomic::{AtomicUsize, Ordering}, MutexGuard,
+    default::Default,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        MutexGuard,
     },
     thread::{self, JoinHandle},
 };
-use types::Object;
 
 #[cfg(test)]
 use std::sync;
@@ -103,7 +105,7 @@ fn sweep(m: usize, heap: &mut MutexGuard<Vec<Object>>) {
 }
 
 fn mark_scope(m: usize) {
-    use symbol_lookup::{gc_mark_scope, SYMBOLS_HEAP};
+    use crate::symbol_lookup::{gc_mark_scope, SYMBOLS_HEAP};
     for &s in SYMBOLS_HEAP.lock().unwrap().values() {
         s.gc_mark(m);
     }
@@ -152,9 +154,9 @@ fn gc_thread() -> ! {
 #[cfg(test)]
 mod test {
     use super::*;
-    use allocate::{ALLOCATOR_SIGNAL_TUPLE, ALLOCED_OBJECTS};
-    use prelude::*;
-    use stack;
+    use crate::allocate::{ALLOCATOR_SIGNAL_TUPLE, ALLOCED_OBJECTS};
+    use crate::prelude::*;
+    use crate::stack;
     #[test]
     fn something_gets_deallocated() {
         let dead_beef = stack::with_stack(|s| {

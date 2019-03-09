@@ -10,9 +10,9 @@
 //! * the unsafe function `eval_from_stack`, which is a part of the
 //!   read-eval-print loop
 
-use prelude::*;
+use crate::prelude::*;
+use crate::types::ExpandedObject;
 use std::cell::Cell;
-use types::ExpandedObject;
 
 thread_local! {
     static EVAL_TO_REFERENCE: Cell<bool> = {

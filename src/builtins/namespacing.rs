@@ -1,6 +1,6 @@
 //! Builtin functions and special forms related to namespacing.
 
-use prelude::*;
+use crate::prelude::*;
 
 pub fn make_namespace_builtins() {
     special_forms! {

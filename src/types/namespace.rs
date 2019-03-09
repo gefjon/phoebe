@@ -1,5 +1,5 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
-use prelude::*;
+use crate::prelude::*;
 use std::collections::HashMap;
 use std::default::Default;
 use std::sync::RwLock;
@@ -327,24 +327,28 @@ impl GarbageCollected for Namespace {
                 ref mut table,
                 parent,
                 ..
-            } => for (sym, heapobj) in table.read().unwrap().iter() {
-                sym.clone().gc_mark(mark);
-                heapobj.clone().gc_mark(mark);
-                if let Some(p) = parent {
-                    p.gc_mark(mark);
+            } => {
+                for (sym, heapobj) in table.read().unwrap().iter() {
+                    sym.clone().gc_mark(mark);
+                    heapobj.clone().gc_mark(mark);
+                    if let Some(p) = parent {
+                        p.gc_mark(mark);
+                    }
                 }
-            },
+            }
             Namespace::Stack {
                 ref mut table,
                 parent,
                 ..
-            } => for (sym, reference) in table.read().unwrap().iter() {
-                sym.clone().gc_mark(mark);
-                (*reference).gc_mark(mark);
-                if let Some(p) = parent {
-                    p.gc_mark(mark);
+            } => {
+                for (sym, reference) in table.read().unwrap().iter() {
+                    sym.clone().gc_mark(mark);
+                    (*reference).gc_mark(mark);
+                    if let Some(p) = parent {
+                        p.gc_mark(mark);
+                    }
                 }
-            },
+            }
         }
     }
 }
