@@ -1,6 +1,6 @@
 use super::pointer_tagging::{ObjectTag, PointerTag};
 use prelude::*;
-use std::alloc::{Alloc, Global, Layout, Opaque};
+use std::alloc::{Alloc, Global, Layout};
 use std::ptr::NonNull;
 use std::{convert, fmt, hash, mem, ptr, slice, str};
 use symbol_lookup::make_symbol;
@@ -54,7 +54,7 @@ impl GarbageCollected for Symbol {
         let p = obj.into_ptr();
         ptr::drop_in_place((&mut *p).as_mut() as *mut [u8]);
         let layout = (&*p).my_layout();
-        Global.dealloc(NonNull::new_unchecked(p as *mut Opaque), layout);
+        Global.dealloc(NonNull::new_unchecked(p as *mut u8), layout);
     }
     fn my_marking(&self) -> &GcMark {
         &self.gc_marking
